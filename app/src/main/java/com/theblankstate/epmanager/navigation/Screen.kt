@@ -20,6 +20,9 @@ sealed class Screen(val route: String) {
     data object Subscriptions : Screen("subscriptions")
     data object Split : Screen("split")
     data object SmsSettings : Screen("sms_settings")
+    data object TransactionDetail : Screen("transaction_detail/{transactionId}") {
+        fun createRoute(transactionId: String) = "transaction_detail/$transactionId"
+    }
     
     // Auth screens
     data object Login : Screen("login")

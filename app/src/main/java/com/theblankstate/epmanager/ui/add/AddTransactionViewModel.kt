@@ -130,6 +130,11 @@ class AddTransactionViewModel @Inject constructor(
             return
         }
         
+        if (state.selectedAccount == null) {
+            _uiState.update { it.copy(error = "Please select an account") }
+            return
+        }
+        
         _uiState.update { it.copy(isSaving = true, error = null) }
         
         viewModelScope.launch {
@@ -138,12 +143,22 @@ class AddTransactionViewModel @Inject constructor(
                     amount = amount,
                     type = state.transactionType,
                     categoryId = state.selectedCategory.id,
-                    accountId = state.selectedAccount?.id,
+                    accountId = state.selectedAccount.id,
                     date = state.selectedDate,
                     note = state.note.takeIf { it.isNotBlank() }
                 )
                 
+                // Save the transaction
                 transactionRepository.insertTransaction(transaction)
+                
+                // Update account balance
+                // Expense = subtract, Income = add
+                val balanceChange = if (state.transactionType == TransactionType.EXPENSE) {
+                    -amount
+                } else {
+                    amount
+                }
+                accountRepository.updateBalance(state.selectedAccount.id, balanceChange)
                 
                 _uiState.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {

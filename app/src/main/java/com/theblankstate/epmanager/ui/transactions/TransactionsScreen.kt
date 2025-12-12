@@ -24,6 +24,7 @@ import com.theblankstate.epmanager.ui.theme.Spacing
 fun TransactionsScreen(
     onNavigateToAddTransaction: () -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToTransactionDetail: (String) -> Unit = {},
     viewModel: TransactionsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -110,7 +111,8 @@ fun TransactionsScreen(
                         TransactionItem(
                             transaction = transactionWithCategory.transaction,
                             categoryName = transactionWithCategory.categoryName,
-                            categoryColor = transactionWithCategory.categoryColor
+                            categoryColor = transactionWithCategory.categoryColor,
+                            onClick = { onNavigateToTransactionDetail(transactionWithCategory.transaction.id) }
                         )
                     }
                 }

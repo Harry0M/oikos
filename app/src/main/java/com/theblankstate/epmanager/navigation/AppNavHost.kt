@@ -3,8 +3,10 @@ package com.theblankstate.epmanager.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.theblankstate.epmanager.ui.add.AddTransactionScreen
 import com.theblankstate.epmanager.ui.ai.AIInsightsScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsScreen
@@ -24,6 +26,7 @@ import com.theblankstate.epmanager.ui.sms.SmsSettingsScreen
 import com.theblankstate.epmanager.ui.split.SplitScreen
 import com.theblankstate.epmanager.ui.subscriptions.SubscriptionsScreen
 import com.theblankstate.epmanager.ui.transactions.TransactionsScreen
+import com.theblankstate.epmanager.ui.transactions.TransactionDetailScreen
 
 @Composable
 fun AppNavHost(
@@ -42,6 +45,9 @@ fun AppNavHost(
                 },
                 onNavigateToTransactions = {
                     navController.navigate(Screen.Transactions.route)
+                },
+                onNavigateToTransactionDetail = { transactionId ->
+                    navController.navigate(Screen.TransactionDetail.createRoute(transactionId))
                 }
             )
         }
@@ -51,6 +57,22 @@ fun AppNavHost(
                 onNavigateToAddTransaction = {
                     navController.navigate(Screen.AddTransaction.route)
                 },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToTransactionDetail = { transactionId ->
+                    navController.navigate(Screen.TransactionDetail.createRoute(transactionId))
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.TransactionDetail.route,
+            arguments = listOf(
+                navArgument("transactionId") { type = NavType.StringType }
+            )
+        ) {
+            TransactionDetailScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

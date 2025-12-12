@@ -161,6 +161,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     
     /**
      * Save transaction from regex parsing (fast path)
+     * Also updates the linked account balance
      */
     private suspend fun saveTransactionFromRegex(
         context: Context,
@@ -189,6 +190,13 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         db.transactionDao().insertTransaction(transaction)
         Log.d(TAG, "Transaction saved immediately: ${parsed.amount}")
         
+        // Update account balance if matched
+        if (matchedAccountId != null) {
+            val balanceChange = if (parsed.isDebit) -parsed.amount else parsed.amount
+            accountRepository.updateBalance(matchedAccountId, balanceChange)
+            Log.d(TAG, "Account $matchedAccountId balance updated by: $balanceChange")
+        }
+        
         // Save pending account info if no match
         if (matchedAccountId == null && parsed.accountHint != null) {
             savePendingAccountInfo(context, parsed, sender)
@@ -210,6 +218,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     
     /**
      * Try AI parsing in background (for complex SMS)
+     * Also updates the linked account balance
      */
     private fun tryAiParsingInBackground(
         context: Context,
@@ -242,6 +251,13 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                     )
                     
                     db.transactionDao().insertTransaction(transaction)
+                    
+                    // Update account balance if matched
+                    if (matchedAccountId != null) {
+                        val balanceChange = if (aiResult.isDebit) -aiResult.amount else aiResult.amount
+                        accountRepository.updateBalance(matchedAccountId, balanceChange)
+                        Log.d(TAG, "AI: Account $matchedAccountId balance updated by: $balanceChange")
+                    }
                     
                     // Update pending SMS status
                     updatePendingSmsStatus(db, body, PendingSmsStatus.AUTO_PROCESSED)

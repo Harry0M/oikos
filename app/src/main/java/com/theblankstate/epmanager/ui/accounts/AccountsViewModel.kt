@@ -6,12 +6,16 @@ import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.data.model.BankRegistry
 import com.theblankstate.epmanager.data.model.SmsTemplate
+import com.theblankstate.epmanager.data.model.Transaction
+import com.theblankstate.epmanager.data.model.TransactionType
 import com.theblankstate.epmanager.data.repository.AccountRepository
+import com.theblankstate.epmanager.data.repository.TransactionRepository
 import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
 
 /**
  * UI state for Accounts screen
@@ -45,11 +49,15 @@ data class BankSuggestion(
 @HiltViewModel
 class AccountsViewModel @Inject constructor(
     private val accountRepository: AccountRepository,
+    private val transactionRepository: TransactionRepository,
     private val smsTemplateDao: SmsTemplateDao
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AccountsUiState())
     val uiState: StateFlow<AccountsUiState> = _uiState.asStateFlow()
+    
+    // Category ID for adjustment transactions
+    private val ADJUSTMENT_CATEGORY = "adjustment"
     
     init {
         loadAccounts()
@@ -144,7 +152,10 @@ class AccountsViewModel @Inject constructor(
         viewModelScope.launch {
             val existingAccount = _uiState.value.editingAccount
             if (existingAccount != null) {
-                // Update existing
+                // Calculate balance difference for adjustment transaction
+                val balanceDiff = balance - existingAccount.balance
+                
+                // Update existing account
                 val updated = existingAccount.copy(
                     name = name,
                     type = type,
@@ -153,8 +164,18 @@ class AccountsViewModel @Inject constructor(
                     balance = balance
                 )
                 accountRepository.updateAccount(updated)
+                
+                // Record adjustment transaction if balance changed
+                if (balanceDiff != 0.0) {
+                    recordAdjustmentTransaction(
+                        accountId = existingAccount.id,
+                        accountName = name,
+                        amount = balanceDiff,
+                        note = "Manual balance adjustment"
+                    )
+                }
             } else {
-                // Create new
+                // Create new account
                 val newAccount = Account(
                     name = name,
                     type = type,
@@ -164,9 +185,40 @@ class AccountsViewModel @Inject constructor(
                     isDefault = false
                 )
                 accountRepository.insertAccount(newAccount)
+                
+                // Record initial balance as adjustment if not zero
+                if (balance != 0.0) {
+                    recordAdjustmentTransaction(
+                        accountId = newAccount.id,
+                        accountName = name,
+                        amount = balance,
+                        note = "Initial balance"
+                    )
+                }
             }
             hideDialog()
         }
+    }
+    
+    /**
+     * Record an adjustment transaction for audit trail
+     */
+    private suspend fun recordAdjustmentTransaction(
+        accountId: String,
+        accountName: String,
+        amount: Double,
+        note: String
+    ) {
+        val transaction = Transaction(
+            amount = abs(amount),
+            type = if (amount >= 0) TransactionType.INCOME else TransactionType.EXPENSE,
+            categoryId = ADJUSTMENT_CATEGORY,
+            accountId = accountId,
+            date = System.currentTimeMillis(),
+            note = "[$accountName] $note",
+            isSynced = false
+        )
+        transactionRepository.insertTransaction(transaction)
     }
     
     /**
@@ -209,13 +261,27 @@ class AccountsViewModel @Inject constructor(
         balance: Double
     ) {
         viewModelScope.launch {
-            accountRepository.createLinkedAccount(
+            val account = accountRepository.createLinkedAccount(
                 name = name,
                 bankCode = bankSuggestion.code,
                 accountNumber = accountNumber,
                 type = type,
                 senderIds = bankSuggestion.senderPatterns
             )
+            
+            // Record initial balance if not zero
+            if (balance != 0.0) {
+                // Update the balance
+                accountRepository.updateBalance(account.id, balance)
+                
+                recordAdjustmentTransaction(
+                    accountId = account.id,
+                    accountName = name,
+                    amount = balance,
+                    note = "Initial balance"
+                )
+            }
+            
             hideDialog()
         }
     }
@@ -224,6 +290,16 @@ class AccountsViewModel @Inject constructor(
         if (account.isDefault) return // Can't delete default accounts
         
         viewModelScope.launch {
+            // Record closing transaction if account has balance
+            if (account.balance != 0.0) {
+                recordAdjustmentTransaction(
+                    accountId = account.id,
+                    accountName = account.name,
+                    amount = -account.balance, // Reverse the balance
+                    note = "Account closed"
+                )
+            }
+            
             accountRepository.deleteAccount(account)
         }
     }

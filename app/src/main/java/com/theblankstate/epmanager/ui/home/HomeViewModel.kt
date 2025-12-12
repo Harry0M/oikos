@@ -95,16 +95,13 @@ class HomeViewModel @Inject constructor(
                 }
         }
         
-        // Calculate total balance (income - expenses)
+        // Get total balance from ACCOUNTS table (source of truth)
+        // This ensures dashboard and accounts screen show same balance
         viewModelScope.launch {
-            combine(
-                transactionRepository.getTotalIncome(),
-                transactionRepository.getTotalExpenses()
-            ) { income, expenses ->
-                (income ?: 0.0) - (expenses ?: 0.0)
-            }.collect { balance ->
-                _uiState.update { it.copy(totalBalance = balance) }
-            }
+            accountRepository.getTotalBalance()
+                .collect { balance ->
+                    _uiState.update { it.copy(totalBalance = balance ?: 0.0) }
+                }
         }
     }
     

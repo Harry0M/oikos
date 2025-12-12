@@ -45,7 +45,11 @@ data class Transaction(
     val recurringId: String? = null, // Link to recurring expense template
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    val isSynced: Boolean = false // For cloud sync tracking
+    val isSynced: Boolean = false, // For cloud sync tracking
+    // Location data
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationName: String? = null // Human-readable location name
 )
 
 enum class TransactionType {

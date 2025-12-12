@@ -46,6 +46,7 @@ object DefaultCategories {
         Category(id = "investment", name = "Investment", icon = "TrendingUp", color = 0xFF3B82F6, type = CategoryType.INCOME, isDefault = true),
         Category(id = "gift", name = "Gift", icon = "CardGiftcard", color = 0xFF8B5CF6, type = CategoryType.INCOME, isDefault = true),
         Category(id = "refund", name = "Refund", icon = "Replay", color = 0xFFF59E0B, type = CategoryType.INCOME, isDefault = true),
+        Category(id = "adjustment", name = "Adjustment", icon = "SwapVert", color = 0xFF6B7280, type = CategoryType.INCOME, isDefault = true),
         Category(id = "other_income", name = "Other", icon = "MoreHoriz", color = 0xFF9CA3AF, type = CategoryType.INCOME, isDefault = true)
     )
     

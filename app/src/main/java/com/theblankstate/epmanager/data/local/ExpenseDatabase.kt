@@ -42,7 +42,7 @@ import com.theblankstate.epmanager.data.model.Transaction
         SmsTemplate::class,
         PendingSms::class
     ],
-    version = 6, // Added SmsTemplate and PendingSms entities
+    version = 7, // Added location fields to Transaction
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
