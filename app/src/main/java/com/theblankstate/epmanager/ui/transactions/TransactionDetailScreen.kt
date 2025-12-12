@@ -114,6 +114,18 @@ fun TransactionDetailScreen(
                 val category = uiState.category
                 val account = uiState.account
                 
+                // Smart account name: show bank name if account name is generic
+                val displayAccountName = when {
+                    account == null -> null
+                    account.name.equals("Bank Account", ignoreCase = true) && !account.bankCode.isNullOrBlank() -> {
+                        account.bankCode // Show bank code like "HDFC" instead of "Bank Account"
+                    }
+                    account.isLinked && !account.bankCode.isNullOrBlank() -> {
+                        "${account.name} (${account.bankCode})"
+                    }
+                    else -> account.name
+                }
+                
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -234,12 +246,12 @@ fun TransactionDetailScreen(
                                     .format(Date(transaction.date))
                             )
                             
-                            // Account
-                            if (account != null) {
+                            // Account with smart naming
+                            if (displayAccountName != null) {
                                 DetailRow(
                                     icon = Icons.Filled.AccountBalance,
                                     label = "Account",
-                                    value = account.name
+                                    value = displayAccountName
                                 )
                             }
                             
@@ -264,6 +276,87 @@ fun TransactionDetailScreen(
                     }
                     
                     Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    // SMS Details Section (only if SMS metadata present)
+                    if (transaction.smsSender != null || transaction.merchantName != null || 
+                        transaction.refNumber != null || transaction.senderName != null || 
+                        transaction.receiverName != null) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.md)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(Spacing.md),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                Text(
+                                    text = "Transaction Details",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                
+                                HorizontalDivider()
+                                
+                                // SMS Sender (Bank)
+                                if (!transaction.smsSender.isNullOrBlank()) {
+                                    DetailRow(
+                                        icon = Icons.Filled.Sms,
+                                        label = "From Bank",
+                                        value = transaction.smsSender
+                                    )
+                                }
+                                
+                                // Sender (for credits)
+                                if (!transaction.senderName.isNullOrBlank()) {
+                                    DetailRow(
+                                        icon = Icons.Filled.PersonAdd,
+                                        label = "Received From",
+                                        value = transaction.senderName
+                                    )
+                                }
+                                
+                                // Receiver (for debits)
+                                if (!transaction.receiverName.isNullOrBlank()) {
+                                    DetailRow(
+                                        icon = Icons.Filled.Person,
+                                        label = "Paid To",
+                                        value = transaction.receiverName
+                                    )
+                                }
+                                
+                                // Merchant
+                                if (!transaction.merchantName.isNullOrBlank() && 
+                                    transaction.merchantName != transaction.receiverName) {
+                                    DetailRow(
+                                        icon = Icons.Filled.Store,
+                                        label = "Merchant",
+                                        value = transaction.merchantName
+                                    )
+                                }
+                                
+                                // UPI ID
+                                if (!transaction.upiId.isNullOrBlank()) {
+                                    DetailRow(
+                                        icon = Icons.Filled.QrCode,
+                                        label = "UPI ID",
+                                        value = transaction.upiId
+                                    )
+                                }
+                                
+                                // Reference Number
+                                if (!transaction.refNumber.isNullOrBlank()) {
+                                    DetailRow(
+                                        icon = Icons.Filled.Tag,
+                                        label = "Reference No.",
+                                        value = transaction.refNumber
+                                    )
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                    }
                     
                     // Location Section
                     if (transaction.latitude != null && transaction.longitude != null) {
@@ -300,14 +393,86 @@ fun TransactionDetailScreen(
                                     value = "${String.format("%.6f", transaction.latitude)}, ${String.format("%.6f", transaction.longitude)}"
                                 )
                                 
+                                // Static Map Preview using OpenStreetMap
+                                // Using free OSM static map service (no API key needed)
+                                val zoom = 15
+                                val lat = transaction.latitude
+                                val lon = transaction.longitude
+                                // Using a free static map service that works without API key
+                                val mapUrl = "https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.003},${lat - 0.002},${lon + 0.003},${lat + 0.002}&layer=mapnik&marker=${lat},${lon}"
+                                
+                                // Alternative: Use direct tile image from OSM
+                                val tileX = ((lon + 180.0) / 360.0 * (1 shl zoom)).toInt()
+                                val latRad = Math.toRadians(lat)
+                                val tileY = ((1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / Math.PI) / 2.0 * (1 shl zoom)).toInt()
+                                val tileUrl = "https://tile.openstreetmap.org/$zoom/$tileX/$tileY.png"
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(150.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    coil.compose.SubcomposeAsyncImage(
+                                        model = coil.request.ImageRequest.Builder(context)
+                                            .data(tileUrl)
+                                            .crossfade(true)
+                                            .addHeader("User-Agent", "EpManager/1.0")
+                                            .build(),
+                                        contentDescription = "Location Map",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        loading = {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        },
+                                        error = {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Map,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(32.dp)
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Tap to view map",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    )
+                                    
+                                    // Location marker overlay
+                                    Icon(
+                                        imageVector = Icons.Filled.LocationOn,
+                                        contentDescription = null,
+                                        tint = Color.Red,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                                
                                 // Open in Maps button
                                 OutlinedButton(
                                     onClick = {
-                                        val gmmIntentUri = Uri.parse("geo:${transaction.latitude},${transaction.longitude}?q=${transaction.latitude},${transaction.longitude}")
-                                        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                                        mapIntent.setPackage("com.google.android.apps.maps")
-                                        if (mapIntent.resolveActivity(context.packageManager) != null) {
+                                        try {
+                                            // Try Google Maps first
+                                            val gmmIntentUri = Uri.parse("geo:0,0?q=${transaction.latitude},${transaction.longitude}(Transaction Location)")
+                                            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
                                             context.startActivity(mapIntent)
+                                        } catch (e: Exception) {
+                                            // Fallback to browser with Google Maps URL
+                                            val browserUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${transaction.latitude},${transaction.longitude}")
+                                            val browserIntent = Intent(Intent.ACTION_VIEW, browserUri)
+                                            context.startActivity(browserIntent)
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth()

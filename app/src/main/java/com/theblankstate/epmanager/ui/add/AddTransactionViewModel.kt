@@ -1,5 +1,6 @@
 package com.theblankstate.epmanager.ui.add
 
+import android.location.Location
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.*
@@ -23,7 +24,11 @@ data class AddTransactionUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val error: String? = null,
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    // Location state
+    val currentLocation: Location? = null,
+    val locationName: String? = null,
+    val isLocationEnabled: Boolean = true // User can toggle off
 )
 
 @HiltViewModel
@@ -115,6 +120,25 @@ class AddTransactionViewModel @Inject constructor(
         _uiState.update { it.copy(selectedDate = timestamp) }
     }
     
+    /**
+     * Update current location
+     */
+    fun updateLocation(location: Location?, locationName: String? = null) {
+        _uiState.update { 
+            it.copy(
+                currentLocation = location,
+                locationName = locationName
+            ) 
+        }
+    }
+    
+    /**
+     * Toggle location recording
+     */
+    fun toggleLocationRecording(enabled: Boolean) {
+        _uiState.update { it.copy(isLocationEnabled = enabled) }
+    }
+    
     fun saveTransaction() {
         val state = _uiState.value
         
@@ -145,7 +169,11 @@ class AddTransactionViewModel @Inject constructor(
                     categoryId = state.selectedCategory.id,
                     accountId = state.selectedAccount.id,
                     date = state.selectedDate,
-                    note = state.note.takeIf { it.isNotBlank() }
+                    note = state.note.takeIf { it.isNotBlank() },
+                    // Location data (only if enabled and available)
+                    latitude = if (state.isLocationEnabled) state.currentLocation?.latitude else null,
+                    longitude = if (state.isLocationEnabled) state.currentLocation?.longitude else null,
+                    locationName = if (state.isLocationEnabled) state.locationName else null
                 )
                 
                 // Save the transaction

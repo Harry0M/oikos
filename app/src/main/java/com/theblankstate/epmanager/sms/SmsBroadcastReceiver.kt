@@ -184,7 +184,14 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             accountId = matchedAccountId,
             date = System.currentTimeMillis(),
             note = buildNote(parsed, sender, matchedAccountId != null),
-            isSynced = false
+            isSynced = false,
+            // SMS metadata
+            smsSender = sender,
+            merchantName = parsed.merchantName,
+            refNumber = parsed.referenceNumber,
+            upiId = parsed.upiId,
+            senderName = parsed.senderName,
+            receiverName = parsed.receiverName
         )
         
         db.transactionDao().insertTransaction(transaction)

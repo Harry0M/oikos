@@ -25,7 +25,9 @@ class SmsParser {
         val detectedBankName: String? = null, // Human-readable bank name
         val cardType: CardType? = null, // Credit card, debit card, etc.
         val upiId: String? = null, // UPI ID if detected
-        val referenceNumber: String? = null // Transaction reference if available
+        val referenceNumber: String? = null, // Transaction reference if available
+        val senderName: String? = null, // Who sent money (for credits)
+        val receiverName: String? = null // Who received money (for debits)
     )
     
     enum class CardType {
@@ -85,10 +87,28 @@ class SmsParser {
         // UPI ID pattern
         private val upiPattern = Pattern.compile("(?:VPA|UPI)[:\\s]+([a-zA-Z0-9._-]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
         
-        // Reference number patterns
+        // Reference number patterns - matches "ref:123456" or "ref: 123456" or "Ref no: 123456"
         private val refPatterns = listOf(
-            Pattern.compile("(?:ref|reference|txn|transaction)[\\s.:#]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("UTR[:\\s]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("ref[:\\s.#]*([0-9]{8,20})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("reference[:\\s.#]*([0-9]{8,20})", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("UTR[:\\s]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("txn[:\\s.#]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE)
+        )
+        
+        // Sender patterns (for credits - who sent money)
+        // Matches: "from Person Name" or "from PERSON NAME"
+        private val senderPatterns = listOf(
+            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+(?:ref|on|\\.|$))", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("from\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("credited\\s+by\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+|$)", Pattern.CASE_INSENSITIVE)
+        )
+        
+        // Receiver patterns (for debits - who received money)
+        // Matches: "to Person Name" or "to PERSON NAME"
+        private val receiverPatterns = listOf(
+            Pattern.compile("to\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+(?:ref|on|\\.|$))", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("to\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("paid\\s+to\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+|$)", Pattern.CASE_INSENSITIVE)
         )
         
         // Bank sender IDs to identify transaction SMS
@@ -200,6 +220,34 @@ class SmsParser {
             }
         }
         
+        // Extract sender name (for credits)
+        var senderName: String? = null
+        if (!isDebit) {
+            for (pattern in senderPatterns) {
+                val matcher = pattern.matcher(message)
+                if (matcher.find()) {
+                    senderName = matcher.group(1)?.trim()?.take(50)
+                    if (!senderName.isNullOrBlank()) break
+                }
+            }
+        }
+        
+        // Extract receiver name (for debits)
+        var receiverName: String? = null
+        if (isDebit) {
+            for (pattern in receiverPatterns) {
+                val matcher = pattern.matcher(message)
+                if (matcher.find()) {
+                    receiverName = matcher.group(1)?.trim()?.take(50)
+                    if (!receiverName.isNullOrBlank()) break
+                }
+            }
+            // Fallback to merchant name if no receiver found
+            if (receiverName.isNullOrBlank() && !merchantName.isNullOrBlank()) {
+                receiverName = merchantName
+            }
+        }
+        
         return ParsedTransaction(
             amount = amount,
             merchantName = merchantName?.trim(),
@@ -210,7 +258,9 @@ class SmsParser {
             detectedBankName = detectedBank?.name,
             cardType = cardType,
             upiId = upiId,
-            referenceNumber = refNumber
+            referenceNumber = refNumber,
+            senderName = senderName,
+            receiverName = receiverName
         )
     }
 }

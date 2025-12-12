@@ -1,5 +1,12 @@
 package com.theblankstate.epmanager.ui.add
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,15 +27,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.TransactionType
 import com.theblankstate.epmanager.ui.theme.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +53,43 @@ fun AddTransactionScreen(
     viewModel: AddTransactionViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
+    // Location permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        
+        if (fineGranted || coarseGranted) {
+            // Get location
+            scope.launch {
+                getCurrentLocation(context)?.let { location ->
+                    val locationName = getLocationName(context, location)
+                    viewModel.updateLocation(location, locationName)
+                }
+            }
+        }
+    }
+    
+    // Request location on screen load
+    LaunchedEffect(Unit) {
+        if (hasLocationPermission(context)) {
+            getCurrentLocation(context)?.let { location ->
+                val locationName = getLocationName(context, location)
+                viewModel.updateLocation(location, locationName)
+            }
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
     
     // Navigate back when saved
     LaunchedEffect(uiState.isSaved) {
@@ -172,6 +224,45 @@ fun AddTransactionScreen(
                 }
             }
             
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Location indicator
+            if (uiState.currentLocation != null || uiState.locationName != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(CardShapeSmall)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = null,
+                        tint = Success,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = uiState.locationName ?: "Location recorded",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { viewModel.toggleLocationRecording(!uiState.isLocationEnabled) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.isLocationEnabled) Icons.Filled.Close else Icons.Filled.Add,
+                            contentDescription = if (uiState.isLocationEnabled) "Remove location" else "Add location",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+            
             Spacer(modifier = Modifier.weight(1f))
             
             // Save Button
@@ -201,6 +292,69 @@ fun AddTransactionScreen(
             
             Spacer(modifier = Modifier.height(Spacing.md))
         }
+    }
+}
+
+private fun hasLocationPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED ||
+    ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+private suspend fun getCurrentLocation(context: Context): Location? {
+    return try {
+        if (!hasLocationPermission(context)) return null
+        
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        val cancellationTokenSource = CancellationTokenSource()
+        
+        fusedLocationClient.getCurrentLocation(
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+            cancellationTokenSource.token
+        ).await()
+    } catch (e: Exception) {
+        null
+    }
+}
+
+private fun getLocationName(context: Context, location: Location): String? {
+    return try {
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+        if (!addresses.isNullOrEmpty()) {
+            val address = addresses[0]
+            
+            // Build a more complete location name
+            val parts = mutableListOf<String>()
+            
+            // Add specific place/building name if available
+            address.featureName?.let { 
+                if (it != address.subLocality && it != address.locality && !it.matches(Regex("\\d+"))) {
+                    parts.add(it)
+                }
+            }
+            
+            // Add sub-locality (neighborhood/area)
+            address.subLocality?.let { parts.add(it) }
+            
+            // Add locality (city)
+            address.locality?.let { parts.add(it) }
+            
+            // If we have parts, join them; otherwise use the full address line
+            if (parts.isNotEmpty()) {
+                parts.distinct().joinToString(", ")
+            } else {
+                // Fallback to full address line
+                address.getAddressLine(0)?.split(",")?.take(2)?.joinToString(", ")
+            }
+        } else null
+    } catch (e: Exception) {
+        null
     }
 }
 

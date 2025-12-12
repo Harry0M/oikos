@@ -46,10 +46,19 @@ data class Transaction(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val isSynced: Boolean = false, // For cloud sync tracking
+    
     // Location data
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val locationName: String? = null // Human-readable location name
+    val locationName: String? = null, // Human-readable location name
+    
+    // SMS parsed metadata
+    val smsSender: String? = null, // SMS sender ID (e.g., "VM-HDFC")
+    val senderName: String? = null, // Who sent money (for credits)
+    val receiverName: String? = null, // Who received money (for debits)
+    val refNumber: String? = null, // Transaction reference number
+    val merchantName: String? = null, // Merchant or payee name
+    val upiId: String? = null // UPI ID if available
 )
 
 enum class TransactionType {
