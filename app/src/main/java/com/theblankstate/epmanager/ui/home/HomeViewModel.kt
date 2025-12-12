@@ -7,6 +7,7 @@ import com.theblankstate.epmanager.data.model.TransactionType
 import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
+import com.theblankstate.epmanager.ui.transactions.TransactionWithCategory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,7 +18,7 @@ data class HomeUiState(
     val monthlyExpenses: Double = 0.0,
     val monthlyIncome: Double = 0.0,
     val todaySpending: Double = 0.0,
-    val recentTransactions: List<Transaction> = emptyList(),
+    val recentTransactions: List<TransactionWithCategory> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -45,12 +46,24 @@ class HomeViewModel @Inject constructor(
     }
     
     private fun loadDashboardData() {
-        // Load recent transactions
+        // Load recent transactions with category info
         viewModelScope.launch {
-            transactionRepository.getRecentTransactions(5)
-                .collect { transactions ->
-                    _uiState.update { it.copy(recentTransactions = transactions) }
+            combine(
+                transactionRepository.getRecentTransactions(5),
+                categoryRepository.getAllCategories()
+            ) { transactions, categories ->
+                val categoryMap = categories.associateBy { it.id }
+                transactions.map { transaction ->
+                    val category = categoryMap[transaction.categoryId]
+                    TransactionWithCategory(
+                        transaction = transaction,
+                        categoryName = category?.name ?: "Unknown",
+                        categoryColor = category?.color ?: 0xFF9CA3AF
+                    )
                 }
+            }.collect { enrichedTransactions ->
+                _uiState.update { it.copy(recentTransactions = enrichedTransactions) }
+            }
         }
         
         // Load monthly expenses

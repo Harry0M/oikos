@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -24,6 +25,11 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    // Force refresh data every time this screen becomes visible
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
     
     Scaffold(
         floatingActionButton = {
@@ -129,12 +135,12 @@ fun HomeScreen(
                 } else {
                     items(
                         items = uiState.recentTransactions,
-                        key = { it.id }
-                    ) { transaction ->
+                        key = { it.transaction.id }
+                    ) { transactionWithCategory ->
                         TransactionItem(
-                            transaction = transaction,
-                            categoryName = transaction.categoryId ?: "Unknown",
-                            categoryColor = 0xFF9CA3AF
+                            transaction = transactionWithCategory.transaction,
+                            categoryName = transactionWithCategory.categoryName,
+                            categoryColor = transactionWithCategory.categoryColor
                         )
                     }
                 }

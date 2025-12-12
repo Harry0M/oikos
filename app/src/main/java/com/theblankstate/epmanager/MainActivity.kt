@@ -128,12 +128,13 @@ fun ExpenseManagerApp() {
                                 navController.navigate(item.route) {
                                     // Pop up to start destination to avoid back stack buildup
                                     popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                                        // Don't save state - we want fresh data each time
+                                        saveState = false
                                     }
                                     // Avoid multiple copies of same destination
                                     launchSingleTop = true
-                                    // Restore state when reselecting a previously selected item
-                                    restoreState = true
+                                    // Don't restore state - show fresh data
+                                    restoreState = false
                                 }
                             },
                             icon = {

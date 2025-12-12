@@ -105,12 +105,12 @@ fun TransactionsScreen(
                 ) {
                     items(
                         items = uiState.transactions,
-                        key = { it.id }
-                    ) { transaction ->
+                        key = { it.transaction.id }
+                    ) { transactionWithCategory ->
                         TransactionItem(
-                            transaction = transaction,
-                            categoryName = transaction.categoryId ?: "Unknown",
-                            categoryColor = 0xFF9CA3AF
+                            transaction = transactionWithCategory.transaction,
+                            categoryName = transactionWithCategory.categoryName,
+                            categoryColor = transactionWithCategory.categoryColor
                         )
                     }
                 }

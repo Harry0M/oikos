@@ -101,9 +101,21 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     
     /**
      * Fast processing path - parse with regex first, then enhance with AI in background
+     * IMPORTANT: Only processes SMS from banks that are linked to user accounts
      */
     private suspend fun processSmsFast(context: Context, body: String, sender: String) {
         val db = ExpenseDatabase.getInstance(context)
+        val accountRepository = AccountRepository(db.accountDao())
+        
+        // CRITICAL: Check if this sender has a linked account
+        // If no linked account matches, skip processing entirely
+        val hasLinkedAccount = checkSenderHasLinkedAccount(accountRepository, sender)
+        if (!hasLinkedAccount) {
+            Log.d(TAG, "No linked account for sender: $sender - skipping SMS parsing")
+            return
+        }
+        
+        Log.d(TAG, "Found linked account for sender: $sender - processing...")
         
         // Step 1: Quick regex parse (immediate)
         val regexParsed = parser.parse(body, sender)
@@ -117,6 +129,33 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             
             // Try AI parsing in background (don't block)
             tryAiParsingInBackground(context, db, body, sender)
+        }
+    }
+    
+    /**
+     * Check if the SMS sender matches any linked account
+     * Returns true only if user has an account linked to this bank/sender
+     */
+    private suspend fun checkSenderHasLinkedAccount(
+        accountRepository: AccountRepository,
+        sender: String
+    ): Boolean {
+        val linkedAccounts = accountRepository.getLinkedAccounts().first()
+        if (linkedAccounts.isEmpty()) return false
+        
+        val normalizedSender = sender.uppercase().replace("-", "")
+        
+        return linkedAccounts.any { account ->
+            // Check if any linked sender IDs match
+            val senderMatches = account.linkedSenderIds?.split(",")
+                ?.any { normalizedSender.contains(it.trim().uppercase()) } ?: false
+            
+            // Check if bank code matches
+            val bankMatches = account.bankCode?.let { 
+                normalizedSender.contains(it.uppercase()) 
+            } ?: false
+            
+            senderMatches || bankMatches
         }
     }
     
@@ -217,9 +256,10 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     
     /**
      * Try to detect category from merchant name
+     * Defaults to "bills" for all bank SMS transactions
      */
-    private suspend fun tryDetectCategory(db: ExpenseDatabase, merchantName: String?): String? {
-        if (merchantName.isNullOrBlank()) return null
+    private suspend fun tryDetectCategory(db: ExpenseDatabase, merchantName: String?): String {
+        if (merchantName.isNullOrBlank()) return "bills" // Default for bank SMS
         
         // Simple keyword matching for common merchants
         val lowerMerchant = merchantName.lowercase()
@@ -255,7 +295,8 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             lowerMerchant.contains("hotstar") ||
             lowerMerchant.contains("prime") -> "entertainment"
             
-            else -> null
+            // Default to bills for all bank SMS
+            else -> "bills"
         }
     }
     

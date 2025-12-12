@@ -5,26 +5,47 @@ import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.data.model.BankRegistry
+import com.theblankstate.epmanager.data.model.SmsTemplate
 import com.theblankstate.epmanager.data.repository.AccountRepository
+import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * UI state for Accounts screen
+ */
 data class AccountsUiState(
     val accounts: List<Account> = emptyList(),
+    val linkedAccounts: List<Account> = emptyList(),
+    val unlinkedAccounts: List<Account> = emptyList(),
     val totalBalance: Double = 0.0,
     val isLoading: Boolean = true,
     val showAddDialog: Boolean = false,
     val showLinkDialog: Boolean = false,
     val editingAccount: Account? = null,
     val linkingAccount: Account? = null,
-    val bankSuggestions: List<BankRegistry.BankInfo> = emptyList()
+    val bankSuggestions: List<BankSuggestion> = emptyList(),
+    val customTemplates: List<SmsTemplate> = emptyList()
+)
+
+/**
+ * Unified bank suggestion that can be either from registry or custom template
+ */
+data class BankSuggestion(
+    val name: String,
+    val code: String,
+    val senderPatterns: List<String>,
+    val color: Long,
+    val isCustom: Boolean = false,
+    val templateId: String? = null
 )
 
 @HiltViewModel
 class AccountsViewModel @Inject constructor(
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val smsTemplateDao: SmsTemplateDao
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AccountsUiState())
@@ -40,9 +61,14 @@ class AccountsViewModel @Inject constructor(
             accountRepository.getAllAccounts()
                 .collect { accounts ->
                     val total = accounts.sumOf { it.balance }
+                    val linked = accounts.filter { it.isLinked }
+                    val unlinked = accounts.filter { !it.isLinked }
+                    
                     _uiState.update { 
                         it.copy(
                             accounts = accounts,
+                            linkedAccounts = linked,
+                            unlinkedAccounts = unlinked,
                             totalBalance = total,
                             isLoading = false
                         ) 
@@ -52,8 +78,39 @@ class AccountsViewModel @Inject constructor(
     }
     
     private fun loadBankSuggestions() {
-        _uiState.update { 
-            it.copy(bankSuggestions = accountRepository.getBankSuggestions()) 
+        viewModelScope.launch {
+            // Get registry banks
+            val registryBanks = (BankRegistry.banks + BankRegistry.upiProviders).map { bank ->
+                BankSuggestion(
+                    name = bank.name,
+                    code = bank.code,
+                    senderPatterns = bank.senderPatterns,
+                    color = bank.color,
+                    isCustom = false
+                )
+            }
+            
+            // Add custom templates
+            smsTemplateDao.getAllActiveTemplates()
+                .collect { templates ->
+                    val customBanks = templates.map { template ->
+                        BankSuggestion(
+                            name = template.bankName,
+                            code = template.bankName.uppercase().take(6),
+                            senderPatterns = template.senderIds.split(",").map { it.trim() },
+                            color = 0xFF6B7280, // Gray for custom
+                            isCustom = true,
+                            templateId = template.id
+                        )
+                    }
+                    
+                    _uiState.update { 
+                        it.copy(
+                            bankSuggestions = registryBanks + customBanks,
+                            customTemplates = templates
+                        ) 
+                    }
+                }
         }
     }
     
@@ -142,11 +199,11 @@ class AccountsViewModel @Inject constructor(
     }
     
     /**
-     * Create a new linked account directly
+     * Create a new linked bank account
      */
     fun createLinkedAccount(
         name: String,
-        bankCode: String,
+        bankSuggestion: BankSuggestion,
         accountNumber: String?,
         type: AccountType,
         balance: Double
@@ -154,9 +211,10 @@ class AccountsViewModel @Inject constructor(
         viewModelScope.launch {
             accountRepository.createLinkedAccount(
                 name = name,
-                bankCode = bankCode,
+                bankCode = bankSuggestion.code,
                 accountNumber = accountNumber,
-                type = type
+                type = type,
+                senderIds = bankSuggestion.senderPatterns
             )
             hideDialog()
         }

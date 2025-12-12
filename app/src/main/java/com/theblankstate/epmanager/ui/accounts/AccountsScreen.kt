@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.AccountType
-import com.theblankstate.epmanager.data.model.BankRegistry
 import com.theblankstate.epmanager.ui.components.formatCurrency
 import com.theblankstate.epmanager.ui.theme.*
 
@@ -132,6 +131,53 @@ fun AccountsScreen(
                     }
                 }
                 
+                // Bank-Linked Accounts Section (SMS Auto-Detection)
+                if (uiState.linkedAccounts.isNotEmpty()) {
+                    item {
+                        SectionHeader(
+                            title = "Bank-Linked Accounts",
+                            subtitle = "SMS auto-detection enabled",
+                            icon = Icons.Filled.Link
+                        )
+                    }
+                    
+                    items(
+                        items = uiState.linkedAccounts,
+                        key = { it.id }
+                    ) { account ->
+                        LinkedAccountItem(
+                            account = account,
+                            onEdit = { viewModel.showEditDialog(account) },
+                            onDelete = { viewModel.deleteAccount(account) },
+                            onUnlink = { viewModel.unlinkAccount(account) }
+                        )
+                    }
+                }
+                
+                // Payment Accounts Section (No SMS)
+                if (uiState.unlinkedAccounts.isNotEmpty()) {
+                    item {
+                        SectionHeader(
+                            title = "Payment Accounts",
+                            subtitle = "Manual tracking only",
+                            icon = Icons.Filled.AccountBalanceWallet
+                        )
+                    }
+                    
+                    items(
+                        items = uiState.unlinkedAccounts,
+                        key = { it.id }
+                    ) { account ->
+                        UnlinkedAccountItem(
+                            account = account,
+                            onEdit = { viewModel.showEditDialog(account) },
+                            onDelete = { viewModel.deleteAccount(account) },
+                            onLink = { viewModel.showLinkDialog(account) }
+                        )
+                    }
+                }
+                
+                // Empty state
                 if (uiState.accounts.isEmpty()) {
                     item {
                         Card(modifier = Modifier.fillMaxWidth()) {
@@ -159,19 +205,11 @@ fun AccountsScreen(
                             }
                         }
                     }
-                } else {
-                    items(
-                        items = uiState.accounts,
-                        key = { it.id }
-                    ) { account ->
-                        AccountItem(
-                            account = account,
-                            onEdit = { viewModel.showEditDialog(account) },
-                            onDelete = { viewModel.deleteAccount(account) },
-                            onLink = { viewModel.showLinkDialog(account) },
-                            onUnlink = { viewModel.unlinkAccount(account) }
-                        )
-                    }
+                }
+                
+                // Help Card
+                item {
+                    HelpCard()
                 }
                 
                 item {
@@ -190,8 +228,8 @@ fun AccountsScreen(
             onConfirm = { name, type, icon, color, balance ->
                 viewModel.saveAccount(name, type, icon, color, balance)
             },
-            onConfirmLinked = { name, bankCode, accountNumber, type, balance ->
-                viewModel.createLinkedAccount(name, bankCode, accountNumber, type, balance)
+            onConfirmLinked = { name, bankSuggestion, accountNumber, type, balance ->
+                viewModel.createLinkedAccount(name, bankSuggestion, accountNumber, type, balance)
             }
         )
     }
@@ -215,12 +253,270 @@ fun AccountsScreen(
 }
 
 @Composable
-private fun AccountItem(
+private fun SectionHeader(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelpCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "How SMS Auto-Detection Works",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = "• Bank-Linked accounts automatically track transactions from bank SMS\n" +
+                       "• Only SMS from linked banks are parsed - no unwanted entries\n" +
+                       "• Link your account to a bank using the 'Link Bank' button\n" +
+                       "• Custom SMS templates from Settings appear in the bank selector",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun LinkedAccountItem(
     account: Account,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onLink: () -> Unit,
     onUnlink: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Icon Circle with bank branding
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(account.color).copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = getAccountIcon(account.icon),
+                        contentDescription = null,
+                        tint = Color(account.color),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(Spacing.md))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = account.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        // Bank Badge
+                        AssistChip(
+                            onClick = {},
+                            label = { 
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AccountBalance,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        account.bankCode ?: "Bank",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                labelColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.height(24.dp)
+                        )
+                        
+                        // Linked Badge
+                        AssistChip(
+                            onClick = {},
+                            label = { 
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Sms,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        "Auto",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = Success.copy(alpha = 0.1f),
+                                labelColor = Success
+                            ),
+                            modifier = Modifier.height(24.dp)
+                        )
+                    }
+                    
+                    // Account number hint
+                    if (account.accountNumber != null) {
+                        Text(
+                            text = "****${account.accountNumber}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = formatCurrency(account.balance),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (account.balance >= 0) Success else Error
+                    )
+                }
+            }
+            
+            // Actions Row
+            HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onUnlink,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Warning
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LinkOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Unlink", style = MaterialTheme.typography.labelMedium)
+                }
+                
+                if (!account.isDefault) {
+                    TextButton(
+                        onClick = { showDeleteDialog = true },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Delete",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Delete", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+    }
+    
+    if (showDeleteDialog) {
+        DeleteConfirmDialog(
+            accountName = account.name,
+            onConfirm = {
+                onDelete()
+                showDeleteDialog = false
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun UnlinkedAccountItem(
+    account: Account,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onLink: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     
@@ -289,32 +585,6 @@ private fun AccountItem(
                                 modifier = Modifier.height(24.dp)
                             )
                         }
-                        if (account.isLinked) {
-                            AssistChip(
-                                onClick = {},
-                                label = { 
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Link,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            "Linked",
-                                            style = MaterialTheme.typography.labelSmall
-                                        )
-                                    }
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = Success.copy(alpha = 0.1f),
-                                    labelColor = Success
-                                ),
-                                modifier = Modifier.height(24.dp)
-                            )
-                        }
                     }
                 }
                 
@@ -328,69 +598,24 @@ private fun AccountItem(
                 }
             }
             
-            // Bank linking info and actions
+            // Link prompt for non-cash accounts
             if (account.type != AccountType.CASH) {
-                Divider(modifier = Modifier.padding(horizontal = Spacing.md))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
                 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    if (account.isLinked) {
-                        // Show linked bank info
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AccountBalance,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Column {
-                                Text(
-                                    text = account.bankCode ?: "Bank",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                if (account.accountNumber != null) {
-                                    Text(
-                                        text = "****${account.accountNumber}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // Unlink button
-                        TextButton(
-                            onClick = onUnlink,
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.LinkOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Unlink", style = MaterialTheme.typography.labelMedium)
-                        }
-                    } else {
-                        // Show link prompt
-                        Text(
-                            text = "Not linked for SMS auto-detection",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        
-                        // Link button
+                    Text(
+                        text = "Enable SMS auto-detection →",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Row {
                         TextButton(
                             onClick = onLink,
                             colors = ButtonDefaults.textButtonColors(
@@ -405,12 +630,25 @@ private fun AccountItem(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Link Bank", style = MaterialTheme.typography.labelMedium)
                         }
+                        
+                        if (!account.isDefault) {
+                            TextButton(
+                                onClick = { showDeleteDialog = true },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = "Delete",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
-            }
-            
-            // Delete button row for non-default accounts
-            if (!account.isDefault) {
+            } else if (!account.isDefault) {
+                // Cash account actions
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -437,37 +675,48 @@ private fun AccountItem(
     }
     
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Account") },
-            text = { Text("Are you sure you want to delete '${account.name}'? This will not delete transactions associated with this account.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete()
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+        DeleteConfirmDialog(
+            accountName = account.name,
+            onConfirm = {
+                onDelete()
+                showDeleteDialog = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = false }
         )
     }
+}
+
+@Composable
+private fun DeleteConfirmDialog(
+    accountName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Account") },
+        text = { Text("Are you sure you want to delete '$accountName'? This will not delete transactions associated with this account.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddEditAccountDialog(
     existingAccount: Account?,
-    bankSuggestions: List<BankRegistry.BankInfo>,
+    bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double) -> Unit,
-    onConfirmLinked: (name: String, bankCode: String, accountNumber: String?, type: AccountType, balance: Double) -> Unit
+    onConfirmLinked: (name: String, bankSuggestion: BankSuggestion, accountNumber: String?, type: AccountType, balance: Double) -> Unit
 ) {
     var name by remember { mutableStateOf(existingAccount?.name ?: "") }
     var selectedType by remember { mutableStateOf(existingAccount?.type ?: AccountType.BANK) }
@@ -476,12 +725,16 @@ private fun AddEditAccountDialog(
     var balance by remember { mutableStateOf(existingAccount?.balance?.toString() ?: "0") }
     var expandedType by remember { mutableStateOf(false) }
     
-    // New fields for linking
-    var createAsLinked by remember { mutableStateOf(false) }
-    var selectedBank by remember { mutableStateOf<BankRegistry.BankInfo?>(null) }
+    // Linking fields
+    var enableSmsDetection by remember { mutableStateOf(false) }
+    var selectedBank by remember { mutableStateOf<BankSuggestion?>(null) }
     var accountNumber by remember { mutableStateOf("") }
     var expandedBank by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    
+    // Filter and group banks
+    val registryBanks = bankSuggestions.filter { !it.isCustom }
+    val customBanks = bankSuggestions.filter { it.isCustom }
     
     val filteredBanks = remember(searchQuery, bankSuggestions) {
         if (searchQuery.isBlank()) bankSuggestions
@@ -508,8 +761,8 @@ private fun AddEditAccountDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Name") },
-                        placeholder = { Text("Account name") },
+                        label = { Text("Account Name *") },
+                        placeholder = { Text("e.g., HDFC Savings") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -556,7 +809,7 @@ private fun AddEditAccountDialog(
                         onValueChange = { 
                             balance = it.filter { c -> c.isDigit() || c == '.' || c == '-' }
                         },
-                        label = { Text("Balance") },
+                        label = { Text("Current Balance") },
                         prefix = { Text("₹") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -564,13 +817,16 @@ private fun AddEditAccountDialog(
                     )
                 }
                 
-                // Link to Bank option (only for new accounts and non-cash)
+                // SMS Detection toggle (for new non-cash accounts)
                 if (existingAccount == null && selectedType != AccountType.CASH) {
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                containerColor = if (enableSmsDetection) 
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                else 
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
                         ) {
                             Column(
@@ -582,11 +838,25 @@ private fun AddEditAccountDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Link for SMS Auto-Detection",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Medium
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Sms,
+                                                contentDescription = null,
+                                                tint = if (enableSmsDetection) 
+                                                    MaterialTheme.colorScheme.primary 
+                                                else 
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "Enable SMS Auto-Detection",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
                                         Text(
                                             text = "Automatically track transactions from bank SMS",
                                             style = MaterialTheme.typography.bodySmall,
@@ -594,12 +864,12 @@ private fun AddEditAccountDialog(
                                         )
                                     }
                                     Switch(
-                                        checked = createAsLinked,
-                                        onCheckedChange = { createAsLinked = it }
+                                        checked = enableSmsDetection,
+                                        onCheckedChange = { enableSmsDetection = it }
                                     )
                                 }
                                 
-                                if (createAsLinked) {
+                                if (enableSmsDetection) {
                                     Spacer(modifier = Modifier.height(Spacing.md))
                                     
                                     // Bank Selector
@@ -610,16 +880,26 @@ private fun AddEditAccountDialog(
                                         OutlinedTextField(
                                             value = selectedBank?.name ?: "",
                                             onValueChange = { searchQuery = it },
-                                            label = { Text("Select Bank") },
+                                            label = { Text("Select Bank *") },
                                             placeholder = { Text("Search banks...") },
                                             trailingIcon = { 
                                                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBank) 
                                             },
                                             leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Filled.AccountBalance,
-                                                    contentDescription = null
-                                                )
+                                                if (selectedBank != null) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(selectedBank!!.color))
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.AccountBalance,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
                                             },
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -630,37 +910,57 @@ private fun AddEditAccountDialog(
                                             expanded = expandedBank,
                                             onDismissRequest = { expandedBank = false }
                                         ) {
-                                            filteredBanks.take(10).forEach { bank ->
+                                            // Custom templates first (if any)
+                                            if (customBanks.isNotEmpty()) {
                                                 DropdownMenuItem(
-                                                    text = { 
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                                                        ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(24.dp)
-                                                                    .clip(CircleShape)
-                                                                    .background(Color(bank.color))
-                                                            )
-                                                            Column {
-                                                                Text(bank.name)
-                                                                Text(
-                                                                    text = bank.code,
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                )
-                                                            }
-                                                        }
+                                                    text = {
+                                                        Text(
+                                                            "Your Custom Templates",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.primary
+                                                        )
                                                     },
+                                                    onClick = {},
+                                                    enabled = false
+                                                )
+                                                customBanks.forEach { bank ->
+                                                    BankDropdownItem(
+                                                        bank = bank,
+                                                        isCustom = true,
+                                                        onClick = {
+                                                            selectedBank = bank
+                                                            selectedColor = bank.color
+                                                            if (name.isBlank()) name = bank.name
+                                                            expandedBank = false
+                                                        }
+                                                    )
+                                                }
+                                                HorizontalDivider()
+                                            }
+                                            
+                                            // Registry banks
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        "Popular Banks",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                },
+                                                onClick = {},
+                                                enabled = false
+                                            )
+                                            filteredBanks.filter { !it.isCustom }.take(12).forEach { bank ->
+                                                BankDropdownItem(
+                                                    bank = bank,
+                                                    isCustom = false,
                                                     onClick = {
                                                         selectedBank = bank
                                                         selectedColor = bank.color
-                                                        if (name.isBlank()) {
-                                                            name = bank.name
-                                                        }
+                                                        if (name.isBlank()) name = bank.name
                                                         expandedBank = false
-                                                        searchQuery = ""
                                                     }
                                                 )
                                             }
@@ -669,7 +969,7 @@ private fun AddEditAccountDialog(
                                     
                                     Spacer(modifier = Modifier.height(Spacing.sm))
                                     
-                                    // Account Number (Last 4 digits)
+                                    // Account Number (optional)
                                     OutlinedTextField(
                                         value = accountNumber,
                                         onValueChange = { 
@@ -680,7 +980,7 @@ private fun AddEditAccountDialog(
                                         label = { Text("Last 4 Digits (Optional)") },
                                         placeholder = { Text("e.g., 1234") },
                                         supportingText = { 
-                                            Text("Helps differentiate multiple accounts from same bank") 
+                                            Text("Helps match SMS to this specific account") 
                                         },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         singleLine = true,
@@ -692,74 +992,76 @@ private fun AddEditAccountDialog(
                     }
                 }
                 
-                // Icon Picker
-                item {
-                    Text(
-                        text = "Icon",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        items(availableIcons) { iconName ->
-                            val isSelected = iconName == selectedIcon
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) 
-                                            MaterialTheme.colorScheme.primaryContainer
+                // Icon Picker (only when not linked)
+                if (!enableSmsDetection) {
+                    item {
+                        Text(
+                            text = "Icon",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            items(availableIcons) { iconName ->
+                                val isSelected = iconName == selectedIcon
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) 
+                                                MaterialTheme.colorScheme.primaryContainer
+                                            else 
+                                                MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        .clickable { selectedIcon = iconName },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = getAccountIcon(iconName),
+                                        contentDescription = iconName,
+                                        tint = if (isSelected) 
+                                            MaterialTheme.colorScheme.primary 
                                         else 
-                                            MaterialTheme.colorScheme.surfaceVariant
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    .clickable { selectedIcon = iconName },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = getAccountIcon(iconName),
-                                    contentDescription = iconName,
-                                    tint = if (isSelected) 
-                                        MaterialTheme.colorScheme.primary 
-                                    else 
-                                        MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                }
                             }
                         }
                     }
-                }
-                
-                // Color Picker
-                item {
-                    Text(
-                        text = "Color",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        items(availableColors) { color ->
-                            val isSelected = color == selectedColor
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(color))
-                                    .clickable { selectedColor = color },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                    
+                    // Color Picker
+                    item {
+                        Text(
+                            text = "Color",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        ) {
+                            items(availableColors) { color ->
+                                val isSelected = color == selectedColor
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(color))
+                                        .clickable { selectedColor = color },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -772,10 +1074,10 @@ private fun AddEditAccountDialog(
                 onClick = {
                     val balanceValue = balance.toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) {
-                        if (createAsLinked && selectedBank != null) {
+                        if (enableSmsDetection && selectedBank != null) {
                             onConfirmLinked(
                                 name, 
-                                selectedBank!!.code, 
+                                selectedBank!!, 
                                 accountNumber.takeIf { it.isNotBlank() },
                                 selectedType,
                                 balanceValue
@@ -785,7 +1087,7 @@ private fun AddEditAccountDialog(
                         }
                     }
                 },
-                enabled = name.isNotBlank() && (!createAsLinked || selectedBank != null)
+                enabled = name.isNotBlank() && (!enableSmsDetection || selectedBank != null)
             ) {
                 Text(if (existingAccount != null) "Save" else "Add")
             }
@@ -798,21 +1100,64 @@ private fun AddEditAccountDialog(
     )
 }
 
-/**
- * Dialog to link an existing account to a bank for SMS auto-detection
- */
+@Composable
+private fun BankDropdownItem(
+    bank: BankSuggestion,
+    isCustom: Boolean,
+    onClick: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { 
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color(bank.color))
+                )
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(bank.name)
+                        if (isCustom) {
+                            Text(
+                                text = "Custom",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(
+                        text = bank.senderPatterns.take(3).joinToString(", "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        onClick = onClick
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LinkAccountDialog(
     account: Account,
-    bankSuggestions: List<BankRegistry.BankInfo>,
+    bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
     onConfirm: (bankCode: String, accountNumber: String?, senderIds: List<String>) -> Unit
 ) {
-    var selectedBank by remember { mutableStateOf<BankRegistry.BankInfo?>(null) }
+    var selectedBank by remember { mutableStateOf<BankSuggestion?>(null) }
     var accountNumber by remember { mutableStateOf(account.accountNumber ?: "") }
     var expandedBank by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    
+    val customBanks = bankSuggestions.filter { it.isCustom }
     
     val filteredBanks = remember(searchQuery, bankSuggestions) {
         if (searchQuery.isBlank()) bankSuggestions
@@ -827,13 +1172,13 @@ private fun LinkAccountDialog(
         title = {
             Column {
                 Text(
-                    text = "Link Account",
+                    text = "Link Bank for SMS Auto-Detection",
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = account.name,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         },
@@ -858,7 +1203,7 @@ private fun LinkAccountDialog(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "Link this account to automatically detect and assign transactions from bank SMS messages.",
+                            text = "After linking, SMS from this bank will automatically create transactions in this account.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -905,29 +1250,38 @@ private fun LinkAccountDialog(
                         expanded = expandedBank,
                         onDismissRequest = { expandedBank = false }
                     ) {
-                        filteredBanks.take(10).forEach { bank ->
+                        // Custom templates first
+                        if (customBanks.isNotEmpty()) {
                             DropdownMenuItem(
-                                text = { 
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(bank.color))
-                                        )
-                                        Column {
-                                            Text(bank.name)
-                                            Text(
-                                                text = "Sender IDs: ${bank.senderPatterns.joinToString(", ")}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
+                                text = {
+                                    Text(
+                                        "Your Custom Templates",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 },
+                                onClick = {},
+                                enabled = false
+                            )
+                            customBanks.forEach { bank ->
+                                BankDropdownItem(
+                                    bank = bank,
+                                    isCustom = true,
+                                    onClick = {
+                                        selectedBank = bank
+                                        expandedBank = false
+                                        searchQuery = ""
+                                    }
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                        
+                        filteredBanks.filter { !it.isCustom }.take(10).forEach { bank ->
+                            BankDropdownItem(
+                                bank = bank,
+                                isCustom = false,
                                 onClick = {
                                     selectedBank = bank
                                     expandedBank = false
@@ -938,7 +1292,7 @@ private fun LinkAccountDialog(
                     }
                 }
                 
-                // Account Number (Last 4 digits)
+                // Account Number
                 OutlinedTextField(
                     value = accountNumber,
                     onValueChange = { 
@@ -946,17 +1300,17 @@ private fun LinkAccountDialog(
                             accountNumber = it
                         }
                     },
-                    label = { Text("Last 4 Digits") },
+                    label = { Text("Last 4 Digits (Optional)") },
                     placeholder = { Text("e.g., 1234") },
                     supportingText = { 
-                        Text("Enter last 4 digits of your account/card number to differentiate multiple accounts") 
+                        Text("Helps differentiate multiple accounts from same bank") 
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 
-                // Preview of what will be matched
+                // Preview
                 if (selectedBank != null) {
                     Card(
                         colors = CardDefaults.cardColors(
@@ -967,23 +1321,16 @@ private fun LinkAccountDialog(
                             modifier = Modifier.padding(Spacing.md)
                         ) {
                             Text(
-                                text = "SMS Matching Preview",
+                                text = "✓ SMS from these senders will be tracked:",
                                 style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                color = Success
                             )
-                            Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Will match SMS from: ${selectedBank!!.senderPatterns.joinToString(", ")}",
+                                text = selectedBank!!.senderPatterns.joinToString(", "),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (accountNumber.isNotBlank()) {
-                                Text(
-                                    text = "With account ending: ****$accountNumber",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
                 }
