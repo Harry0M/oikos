@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "433679771016",
+    "firebase_url": "https://epmanager01-4cf7b-default-rtdb.firebaseio.com",
+    "project_id": "epmanager01-4cf7b",
+    "storage_bucket": "epmanager01-4cf7b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433679771016:android:8eaecc1139486a90df063d",
+        "android_client_info": {
+          "package_name": "com.theblankstate.epmanager"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433679771016-og24d0m53ke0csvf5te23krs5d63gc6s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMET4tE6da6E6NlTp5COs97ziFmiEdpTU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433679771016-og24d0m53ke0csvf5te23krs5d63gc6s.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

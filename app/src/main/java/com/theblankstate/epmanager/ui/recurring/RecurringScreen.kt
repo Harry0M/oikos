@@ -1,0 +1,478 @@
+package com.theblankstate.epmanager.ui.recurring
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.theblankstate.epmanager.data.model.Category
+import com.theblankstate.epmanager.data.model.RecurringExpense
+import com.theblankstate.epmanager.data.model.RecurringFrequency
+import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecurringScreen(
+    onNavigateBack: () -> Unit,
+    viewModel: RecurringViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = "Recurring Expenses",
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { viewModel.showAddDialog() },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add Recurring"
+                )
+            }
+        }
+    ) { paddingValues ->
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                // Info Card
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.sm))
+                            Text(
+                                text = "Recurring expenses are automatically added on their due date when auto-add is enabled.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+                
+                if (uiState.recurringExpenses.isEmpty()) {
+                    item {
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.xxl),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "🔄",
+                                    style = MaterialTheme.typography.displayLarge
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.md))
+                                Text(
+                                    text = "No Recurring Expenses",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Tap + to add subscriptions, bills, etc.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(
+                        items = uiState.recurringExpenses,
+                        key = { it.id }
+                    ) { recurring ->
+                        val category = uiState.categories.find { it.id == recurring.categoryId }
+                        RecurringItem(
+                            recurring = recurring,
+                            category = category,
+                            onToggleActive = { viewModel.toggleActive(recurring) },
+                            onDelete = { viewModel.deleteRecurring(recurring) }
+                        )
+                    }
+                }
+                
+                item {
+                    Spacer(modifier = Modifier.height(Spacing.huge))
+                }
+            }
+        }
+    }
+    
+    // Add Dialog
+    if (uiState.showAddDialog) {
+        AddRecurringDialog(
+            categories = uiState.categories,
+            onDismiss = { viewModel.hideAddDialog() },
+            onConfirm = { name, amount, categoryId, frequency, autoAdd ->
+                viewModel.addRecurringExpense(name, amount, categoryId, frequency, autoAdd)
+            }
+        )
+    }
+}
+
+@Composable
+private fun RecurringItem(
+    recurring: RecurringExpense,
+    category: Category?,
+    onToggleActive: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (recurring.isActive) 
+                MaterialTheme.colorScheme.surface 
+            else 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = recurring.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (category != null) {
+                            Text(
+                                text = category.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(category.color)
+                            )
+                            Text(
+                                text = " • ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = recurring.frequency.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                Text(
+                    text = formatCurrency(recurring.amount),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Error
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xxs))
+                    Text(
+                        text = "Next: ${formatDate(recurring.nextDueDate)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    if (recurring.autoAdd) {
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Auto", style = MaterialTheme.typography.labelSmall) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoMode,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
+                            modifier = Modifier.height(24.dp)
+                        )
+                    }
+                }
+                
+                Row {
+                    IconButton(onClick = onToggleActive) {
+                        Icon(
+                            imageVector = if (recurring.isActive) 
+                                Icons.Filled.PauseCircle else Icons.Filled.PlayCircle,
+                            contentDescription = if (recurring.isActive) "Pause" else "Resume",
+                            tint = if (recurring.isActive) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.Delete,
+                            contentDescription = "Delete",
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Recurring Expense") },
+            text = { Text("Are you sure you want to delete '${recurring.name}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddRecurringDialog(
+    categories: List<Category>,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, autoAdd: Boolean) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<Category?>(null) }
+    var selectedFrequency by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
+    var autoAdd by remember { mutableStateOf(true) }
+    var expandedCategory by remember { mutableStateOf(false) }
+    var expandedFrequency by remember { mutableStateOf(false) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add Recurring Expense",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                // Name
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    placeholder = { Text("Netflix, Rent, etc.") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Amount
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { 
+                        amount = it.filter { c -> c.isDigit() || c == '.' }
+                    },
+                    label = { Text("Amount") },
+                    prefix = { Text("₹") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Category Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expandedCategory,
+                    onExpandedChange = { expandedCategory = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedCategory?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category (Optional)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = expandedCategory,
+                        onDismissRequest = { expandedCategory = false }
+                    ) {
+                        categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = {
+                                    selectedCategory = category
+                                    expandedCategory = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                // Frequency Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expandedFrequency,
+                    onExpandedChange = { expandedFrequency = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedFrequency.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Frequency") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFrequency) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = expandedFrequency,
+                        onDismissRequest = { expandedFrequency = false }
+                    ) {
+                        RecurringFrequency.entries.forEach { freq ->
+                            DropdownMenuItem(
+                                text = { Text(freq.label) },
+                                onClick = {
+                                    selectedFrequency = freq
+                                    expandedFrequency = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                // Auto-add toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Auto-add transaction",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Automatically add on due date",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = autoAdd,
+                        onCheckedChange = { autoAdd = it }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amountValue = amount.toDoubleOrNull()
+                    if (name.isNotBlank() && amountValue != null && amountValue > 0) {
+                        onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, autoAdd)
+                    }
+                },
+                enabled = name.isNotBlank() && amount.toDoubleOrNull()?.let { it > 0 } == true
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun formatDate(timestamp: Long): String {
+    return SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+}
