@@ -335,6 +335,29 @@ class AddTransactionViewModel @Inject constructor(
         _uiState.update { it.copy(selectedCategory = category) }
     }
     
+    fun createCategory(name: String) {
+        viewModelScope.launch {
+            val categoryType = when (_uiState.value.transactionType) {
+                TransactionType.EXPENSE -> CategoryType.EXPENSE
+                TransactionType.INCOME -> CategoryType.INCOME
+            }
+            val newCategory = Category(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                icon = "Category", // Default icon
+                color = 0xFF6366F1, // Default indigo color
+                type = categoryType
+            )
+            categoryRepository.insertCategory(newCategory)
+            // Refresh categories and select the new one
+            val updatedCategories = categoryRepository.getCategoriesByType(categoryType).first()
+            _uiState.update { it.copy(
+                categories = updatedCategories,
+                selectedCategory = newCategory
+            ) }
+        }
+    }
+    
     fun selectAccount(account: Account) {
         _uiState.update { it.copy(selectedAccount = account) }
     }

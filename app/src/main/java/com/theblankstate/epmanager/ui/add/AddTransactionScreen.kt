@@ -747,7 +747,8 @@ fun AddTransactionScreen(
             categories = uiState.categories,
             selectedCategory = uiState.selectedCategory,
             onCategorySelected = viewModel::selectCategory,
-            onDismiss = { showCategorySheet = false }
+            onDismiss = { showCategorySheet = false },
+            onCreateCategory = { name -> viewModel.createCategory(name) }
         )
     }
     
@@ -926,18 +927,18 @@ private fun CategorySelector(
     onCategorySelected: (Category) -> Unit,
     onShowMore: () -> Unit = {}
 ) {
-    // Show max 5 categories, put selected at front if not in first 5
-    val displayCategories = if (categories.size <= 5) {
+    // Show max 4 categories + More at 5th position, put selected at front if not in first 4
+    val displayCategories = if (categories.size <= 4) {
         categories
     } else {
-        val first5 = categories.take(5)
-        if (selectedCategory != null && selectedCategory !in first5) {
-            listOf(selectedCategory) + first5.take(4)
+        val first4 = categories.take(4)
+        if (selectedCategory != null && selectedCategory !in first4) {
+            listOf(selectedCategory) + first4.take(3)
         } else {
-            first5
+            first4
         }
     }
-    val hasMore = categories.size > 5
+    val hasMore = categories.size > 4
     
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
@@ -1016,7 +1017,7 @@ private fun CategorySelector(
                     }
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        text = "+${categories.size - 5}",
+                        text = "+${categories.size - 4}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1227,9 +1228,12 @@ private fun CategoryPickerSheet(
     categories: List<Category>,
     selectedCategory: Category?,
     onCategorySelected: (Category) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCreateCategory: ((String) -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showCreateInput by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1241,11 +1245,58 @@ private fun CategoryPickerSheet(
                 .padding(horizontal = Spacing.lg)
                 .padding(bottom = Spacing.xxl)
         ) {
-            Text(
-                text = "Select Category",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Select Category",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                if (onCreateCategory != null && !showCreateInput) {
+                    TextButton(onClick = { showCreateInput = true }) {
+                        Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        Text("New")
+                    }
+                }
+            }
+            
+            // Create new category input
+            if (showCreateInput && onCreateCategory != null) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newCategoryName,
+                        onValueChange = { newCategoryName = it },
+                        label = { Text("Category name") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = InputFieldShape
+                    )
+                    FilledTonalButton(
+                        onClick = {
+                            if (newCategoryName.isNotBlank()) {
+                                onCreateCategory(newCategoryName.trim())
+                                newCategoryName = ""
+                                showCreateInput = false
+                            }
+                        },
+                        enabled = newCategoryName.isNotBlank()
+                    ) {
+                        Text("Add")
+                    }
+                    IconButton(onClick = { showCreateInput = false; newCategoryName = "" }) {
+                        Icon(Icons.Filled.Close, "Cancel")
+                    }
+                }
+            }
             
             Spacer(modifier = Modifier.height(Spacing.md))
             
