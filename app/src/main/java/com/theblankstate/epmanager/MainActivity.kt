@@ -79,13 +79,14 @@ fun ExpenseManagerApp() {
         }
     }
     
-    // Hide bottom bar on certain screens
+    // Show bottom bar on main sections, including Transactions
     val showBottomBar = remember(currentRoute) {
         currentRoute in listOf(
             Screen.Home.route,
-            Screen.Transactions.route,
+            Screen.Budget.route,
             Screen.Analytics.route,
-            Screen.Settings.route
+            Screen.Settings.route,
+            Screen.Transactions.route
         )
     }
     
@@ -125,16 +126,22 @@ fun ExpenseManagerApp() {
                         NavigationBarItem(
                             selected = isSelected,
                             onClick = {
-                                navController.navigate(item.route) {
-                                    // Pop up to start destination to avoid back stack buildup
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        // Don't save state - we want fresh data each time
-                                        saveState = false
+                                // Special handling for Home to ensure clean navigation
+                                if (item.route == Screen.Home.route) {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
                                     }
-                                    // Avoid multiple copies of same destination
-                                    launchSingleTop = true
-                                    // Don't restore state - show fresh data
-                                    restoreState = false
+                                } else {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 }
                             },
                             icon = {

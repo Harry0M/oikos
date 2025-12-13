@@ -33,6 +33,7 @@ import java.util.*
 @Composable
 fun TransactionDetailScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToEdit: () -> Unit = {},
     viewModel: TransactionDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -60,6 +61,15 @@ fun TransactionDetailScreen(
                 },
                 actions = {
                     if (uiState.transaction != null) {
+                        // Edit button
+                        IconButton(onClick = onNavigateToEdit) {
+                            Icon(
+                                imageVector = Icons.Filled.Edit,
+                                contentDescription = "Edit",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        // Delete button
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 imageVector = Icons.Filled.Delete,

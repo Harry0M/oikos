@@ -91,7 +91,20 @@ class BudgetRepository @Inject constructor(
                 calendar.set(Calendar.MINUTE, 0)
                 calendar.set(Calendar.SECOND, 0)
             }
+            BudgetPeriod.BIWEEKLY -> {
+                calendar.add(Calendar.DAY_OF_YEAR, -14)
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+            }
             BudgetPeriod.MONTHLY -> {
+                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+            }
+            BudgetPeriod.QUARTERLY -> {
+                calendar.add(Calendar.MONTH, -3)
                 calendar.set(Calendar.DAY_OF_MONTH, 1)
                 calendar.set(Calendar.HOUR_OF_DAY, 0)
                 calendar.set(Calendar.MINUTE, 0)

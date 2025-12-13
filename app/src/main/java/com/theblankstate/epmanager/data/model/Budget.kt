@@ -32,11 +32,13 @@ data class Budget(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-enum class BudgetPeriod {
-    DAILY,
-    WEEKLY,
-    MONTHLY,
-    YEARLY
+enum class BudgetPeriod(val label: String) {
+    DAILY("Daily"),
+    WEEKLY("Weekly"),
+    BIWEEKLY("Bi-weekly"),
+    MONTHLY("Monthly"),
+    QUARTERLY("Quarterly"),
+    YEARLY("Yearly")
 }
 
 /**

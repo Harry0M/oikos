@@ -3,11 +3,11 @@ package com.theblankstate.epmanager.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Receipt
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -27,11 +27,11 @@ sealed class BottomNavItem(
         unselectedIcon = Icons.Outlined.Home
     )
     
-    data object Transactions : BottomNavItem(
-        route = Screen.Transactions.route,
-        title = "Transactions",
-        selectedIcon = Icons.Filled.Receipt,
-        unselectedIcon = Icons.Outlined.Receipt
+    data object Budget : BottomNavItem(
+        route = Screen.Budget.route,
+        title = "Budget",
+        selectedIcon = Icons.Filled.PieChart,
+        unselectedIcon = Icons.Outlined.PieChart
     )
     
     data object Analytics : BottomNavItem(
@@ -49,6 +49,6 @@ sealed class BottomNavItem(
     )
     
     companion object {
-        val items = listOf(Home, Transactions, Analytics, Settings)
+        val items = listOf(Home, Budget, Analytics, Settings)
     }
 }

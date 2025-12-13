@@ -1,22 +1,38 @@
 package com.theblankstate.epmanager.ui.home
 
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.components.*
 import com.theblankstate.epmanager.ui.theme.Spacing
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,10 +43,35 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val lazyListState = rememberLazyListState()
+    var hasNavigated by remember { mutableStateOf(false) }
     
     // Force refresh data every time this screen becomes visible
     LaunchedEffect(Unit) {
         viewModel.refresh()
+        hasNavigated = false // Reset when screen is shown
+    }
+    
+    // Detect when user scrolls past the last transaction item (scroll up to see more)
+    // This triggers navigation to full Transactions screen
+    LaunchedEffect(lazyListState) {
+        snapshotFlow { 
+            // Check if we've scrolled to the transactions section and are at/near the end
+            val isInTransactions = lazyListState.firstVisibleItemIndex >= 4
+            val canScrollForward = lazyListState.canScrollForward
+            isInTransactions to canScrollForward
+        }
+            .distinctUntilChanged()
+            .filter { (isInTransactions, canScrollForward) -> 
+                // Trigger when in transactions section and can't scroll further (reached end)
+                isInTransactions && !canScrollForward && !hasNavigated
+            }
+            .collect {
+                hasNavigated = true
+                triggerVibration(context)
+                onNavigateToTransactions()
+            }
     }
     
     Scaffold(
@@ -64,7 +105,9 @@ fun HomeScreen(
                 CircularProgressIndicator()
             }
         } else {
+            AnimatedVisibility(visible = true, enter = fadeIn(), exit = fadeOut()) {
             LazyColumn(
+                state = lazyListState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
@@ -124,19 +167,20 @@ fun HomeScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         TextButton(onClick = onNavigateToTransactions) {
-                            Text("See All")
+                            Text("View All")
                         }
                     }
                 }
                 
-                // Transactions List
+                // Transactions List - Limited to 5 items
                 if (uiState.recentTransactions.isEmpty()) {
                     item {
                         EmptyTransactionState()
                     }
                 } else {
+                    val displayTransactions = uiState.recentTransactions.take(5)
                     items(
-                        items = uiState.recentTransactions,
+                        items = displayTransactions,
                         key = { it.transaction.id }
                     ) { transactionWithCategory ->
                         TransactionItem(
@@ -153,6 +197,26 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(Spacing.huge))
                 }
             }
+            }
         }
+    }
+}
+
+/**
+ * Trigger vibration feedback for pull gesture
+ */
+private fun triggerVibration(context: android.content.Context) {
+    try {
+        val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(100)
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }

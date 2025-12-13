@@ -1,5 +1,6 @@
 package com.theblankstate.epmanager.ui.auth
 
+import android.app.Activity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -11,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,12 +34,42 @@ fun LoginScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var isGoogleSignInLoading by remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Google Sign-In handler
+    val handleGoogleSignIn: () -> Unit = {
+        coroutineScope.launch {
+            isGoogleSignInLoading = true
+            try {
+                val activity = context as? Activity
+                if (activity != null) {
+                    val googleSignInHelper = GoogleSignInHelper(activity)
+                    googleSignInHelper.signIn()
+                        .onSuccess { idToken ->
+                            viewModel.signInWithGoogle(idToken)
+                        }
+                        .onFailure { e ->
+                            snackbarHostState.showSnackbar(e.message ?: "Google Sign-In failed")
+                        }
+                } else {
+                    snackbarHostState.showSnackbar("Unable to start Google Sign-In")
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(e.message ?: "Google Sign-In error")
+            } finally {
+                isGoogleSignInLoading = false
+            }
+        }
+    }
     
     // Handle success
     LaunchedEffect(uiState.isLoggedIn) {
@@ -211,18 +244,31 @@ fun LoginScreen(
             
             Spacer(modifier = Modifier.height(Spacing.lg))
             
-            // Google Sign-in (placeholder - needs actual implementation)
+            // Google Sign-in
             OutlinedButton(
-                onClick = { /* TODO: Implement Google Sign-In */ },
+                onClick = handleGoogleSignIn,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
+                enabled = !uiState.isLoading && !isGoogleSignInLoading,
                 shape = ButtonShapePill
             ) {
-                Text(
-                    text = "Continue with Google",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                if (isGoogleSignInLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Continue with Google",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.weight(1f))

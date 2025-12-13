@@ -71,9 +71,30 @@ fun AppNavHost(
             arguments = listOf(
                 navArgument("transactionId") { type = NavType.StringType }
             )
-        ) {
+        ) { backStackEntry ->
+            val transactionId = backStackEntry.arguments?.getString("transactionId") ?: ""
             TransactionDetailScreen(
                 onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToEdit = {
+                    navController.navigate(Screen.EditTransaction.createRoute(transactionId))
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.EditTransaction.route,
+            arguments = listOf(
+                navArgument("transactionId") { type = NavType.StringType }
+            )
+        ) {
+            com.theblankstate.epmanager.ui.edit.EditTransactionScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onTransactionSaved = {
+                    // Pop back to transaction detail or transactions list
                     navController.popBackStack()
                 }
             )
