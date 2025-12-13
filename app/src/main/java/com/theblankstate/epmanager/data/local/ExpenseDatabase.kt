@@ -42,7 +42,7 @@ import com.theblankstate.epmanager.data.model.Transaction
         SmsTemplate::class,
         PendingSms::class
     ],
-    version = 8, // Added SMS metadata and location fields to Transaction
+    version = 9, // Added budget field to SplitGroup
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {

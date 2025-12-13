@@ -53,19 +53,42 @@ fun HomeScreen(
         hasNavigated = false // Reset when screen is shown
     }
     
-    // Detect when user scrolls past the last transaction item (scroll up to see more)
-    // This triggers navigation to full Transactions screen
+    // Detect when user scrolls to the end of the transactions list
+    // This triggers navigation to full Transactions screen with vibration feedback
+    // Only trigger if: list has enough items, user has scrolled, and at the end
+    var hasStartedScrolling by remember { mutableStateOf(false) }
+    
+    // Track if user has actually scrolled
     LaunchedEffect(lazyListState) {
+        snapshotFlow { lazyListState.firstVisibleItemScrollOffset }
+            .collect { offset ->
+                if (offset > 0) hasStartedScrolling = true
+            }
+    }
+    
+    LaunchedEffect(lazyListState, uiState.recentTransactions, hasStartedScrolling) {
         snapshotFlow { 
-            // Check if we've scrolled to the transactions section and are at/near the end
-            val isInTransactions = lazyListState.firstVisibleItemIndex >= 4
-            val canScrollForward = lazyListState.canScrollForward
-            isInTransactions to canScrollForward
+            val layoutInfo = lazyListState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            
+            // Check if:
+            // 1. We have at least 3 transactions (enough to scroll)
+            // 2. User has actually scrolled the list
+            // 3. User has scrolled to the bottom
+            // 4. Cannot scroll further down
+            val hasEnoughTransactions = uiState.recentTransactions.size >= 3
+            val isAtEnd = totalItems > 0 && lastVisibleIndex >= totalItems - 2
+            val cannotScrollMore = !lazyListState.canScrollForward
+            
+            // Return all conditions
+            listOf(hasEnoughTransactions, hasStartedScrolling, isAtEnd, cannotScrollMore)
         }
             .distinctUntilChanged()
-            .filter { (isInTransactions, canScrollForward) -> 
-                // Trigger when in transactions section and can't scroll further (reached end)
-                isInTransactions && !canScrollForward && !hasNavigated
+            .filter { conditions -> 
+                val (hasEnoughTransactions, userScrolled, isAtEnd, cannotScrollMore) = conditions
+                // Only trigger when user has scrolled and reached the end
+                hasEnoughTransactions && userScrolled && isAtEnd && cannotScrollMore && !hasNavigated
             }
             .collect {
                 hasNavigated = true

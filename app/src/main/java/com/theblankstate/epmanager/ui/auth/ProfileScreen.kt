@@ -111,11 +111,11 @@ fun ProfileScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(Spacing.xl))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             
-            // Sync Section
+            // Cloud Backup Section
             Text(
-                text = "Cloud Sync",
+                text = "Cloud Backup",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
@@ -123,7 +123,43 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            // Last Sync Info
+            // Info card about auto-sync
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Column {
+                        Text(
+                            text = "Auto-Sync Enabled",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            text = "Settings (budgets, goals, recurring expenses, splits) sync automatically every 6 hours. Transaction history requires manual backup.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // Last Sync Status
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -134,7 +170,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Cloud,
+                        imageVector = Icons.Filled.CloudDone,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -163,47 +199,128 @@ fun ProfileScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             
-            // Backup Button
+            // Backup Options
+            Text(
+                text = "Backup to Cloud",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            
+            // Sync Everything Button
             Button(
-                onClick = { viewModel.backupToCloud() },
+                onClick = { viewModel.backupEverything() },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isSyncing,
                 shape = ButtonShape
             ) {
-                Icon(
-                    imageVector = Icons.Filled.CloudUpload,
-                    contentDescription = null
-                )
+                Icon(imageVector = Icons.Filled.CloudSync, contentDescription = null)
                 Spacer(modifier = Modifier.width(Spacing.sm))
-                Text("Backup to Cloud")
+                Text("Sync Everything")
             }
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            // Restore Button
-            OutlinedButton(
-                onClick = { viewModel.restoreFromCloud() },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isSyncing,
-                shape = ButtonShape
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.CloudDownload,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Text("Restore from Cloud")
+                OutlinedButton(
+                    onClick = { viewModel.backupSettingsToCloud() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSyncing,
+                    shape = ButtonShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Settings", style = MaterialTheme.typography.labelMedium)
+                }
+                
+                OutlinedButton(
+                    onClick = { viewModel.backupTransactions() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSyncing,
+                    shape = ButtonShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Receipt,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Transactions", style = MaterialTheme.typography.labelMedium)
+                }
             }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Restore Options
+            Text(
+                text = "Restore from Cloud",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             
             Spacer(modifier = Modifier.height(Spacing.xs))
             
-            Text(
-                text = "⚠️ Restore will merge cloud data with local data",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // Restore Everything button (prominent)
+            OutlinedButton(
+                onClick = { viewModel.restoreEverything() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isSyncing,
+                shape = ButtonShape,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(imageVector = Icons.Filled.CloudDownload, contentDescription = null)
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text("Restore Everything")
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.restoreSettingsFromCloud() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSyncing,
+                    shape = ButtonShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Restore,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Settings", style = MaterialTheme.typography.labelMedium)
+                }
+                
+                OutlinedButton(
+                    onClick = { viewModel.restoreTransactions() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !uiState.isSyncing,
+                    shape = ButtonShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.History,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Transactions", style = MaterialTheme.typography.labelMedium)
+                }
+            }
             
             Spacer(modifier = Modifier.height(Spacing.xxl))
             
@@ -244,6 +361,8 @@ fun ProfileScreen(
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(Spacing.huge))
         }
     }
     

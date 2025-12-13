@@ -134,49 +134,58 @@ class SplitRepository @Inject constructor(
         val expenses = splitDao.getExpensesByGroup(groupId).first()
         val settlements = splitDao.getSettlementsByGroup(groupId).first()
         
-        // Calculate what each person owes/is owed
-        val memberOwes = mutableMapOf<String, Double>() // How much each member owes to the pool
-        val memberPaid = mutableMapOf<String, Double>() // How much each member paid
+        // Track net balance between current user and each other member
+        // Positive = they owe current user, Negative = current user owes them
+        val balanceWithMember = mutableMapOf<String, Double>()
         
-        members.forEach { member ->
-            memberOwes[member.id] = 0.0
-            memberPaid[member.id] = 0.0
+        members.filter { !it.isCurrentUser }.forEach { member ->
+            balanceWithMember[member.id] = 0.0
         }
         
         // Calculate from expenses
         expenses.forEach { expense ->
-            // Person who paid gets credit
-            expense.paidById?.let { payerId ->
-                memberPaid[payerId] = (memberPaid[payerId] ?: 0.0) + expense.totalAmount
-            }
-            
-            // Each person owes their share
             val shares = splitDao.getSharesByExpense(expense.id)
-            shares.forEach { share ->
-                memberOwes[share.memberId] = (memberOwes[share.memberId] ?: 0.0) + share.shareAmount
+            val myShare = shares.find { it.memberId == currentUser.id }?.shareAmount ?: 0.0
+            
+            if (expense.paidById == currentUser.id) {
+                // I paid - others owe me their share
+                shares.filter { it.memberId != currentUser.id }.forEach { share ->
+                    balanceWithMember[share.memberId] = 
+                        (balanceWithMember[share.memberId] ?: 0.0) + share.shareAmount
+                }
+            } else {
+                // Someone else paid - I owe them my share
+                expense.paidById?.let { payerId ->
+                    if (payerId != currentUser.id) {
+                        balanceWithMember[payerId] = 
+                            (balanceWithMember[payerId] ?: 0.0) - myShare
+                    }
+                }
             }
         }
         
         // Apply settlements
         settlements.forEach { settlement ->
-            memberPaid[settlement.fromMemberId] = 
-                (memberPaid[settlement.fromMemberId] ?: 0.0) + settlement.amount
-            memberOwes[settlement.toMemberId] = 
-                (memberOwes[settlement.toMemberId] ?: 0.0) + settlement.amount
+            if (settlement.fromMemberId == currentUser.id) {
+                // I paid someone - reduce what I owe them (or increase what they owe me)
+                balanceWithMember[settlement.toMemberId] = 
+                    (balanceWithMember[settlement.toMemberId] ?: 0.0) + settlement.amount
+            } else if (settlement.toMemberId == currentUser.id) {
+                // Someone paid me - reduce what they owe me
+                balanceWithMember[settlement.fromMemberId] = 
+                    (balanceWithMember[settlement.fromMemberId] ?: 0.0) - settlement.amount
+            }
         }
         
-        // Calculate net balance for each member relative to current user
-        // Balance = what they owe - what they paid
-        return members.filter { !it.isCurrentUser }.map { member ->
-            val theirNetOwes = (memberOwes[member.id] ?: 0.0) - (memberPaid[member.id] ?: 0.0)
-            val myNetOwes = (memberOwes[currentUser.id] ?: 0.0) - (memberPaid[currentUser.id] ?: 0.0)
-            
-            // Simplified: just show each person's net balance
-            MemberBalance(
-                member = member,
-                balance = -theirNetOwes // Positive means they owe to group
-            )
-        }
+        // Convert to MemberBalance list, filtering out zero balances
+        return members.filter { !it.isCurrentUser }
+            .map { member ->
+                MemberBalance(
+                    member = member,
+                    balance = balanceWithMember[member.id] ?: 0.0
+                )
+            }
+            .filter { it.balance != 0.0 }
     }
     
     /**
@@ -197,5 +206,12 @@ class SplitRepository @Inject constructor(
                 yourBalance = yourBalance
             )
         }
+    }
+    
+    /**
+     * Get current user member from a list (sync helper)
+     */
+    fun getCurrentUserMemberSync(members: List<GroupMember>): GroupMember? {
+        return members.find { it.isCurrentUser }
     }
 }

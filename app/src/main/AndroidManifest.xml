@@ -15,6 +15,9 @@
     <!-- Location permission for recording transaction location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- Vibrate permission for haptic feedback -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".EpManagerApp"
@@ -27,6 +30,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Epmanager"
         tools:targetApi="31">
+        
+        <!-- Disable default WorkManager initialization to use Hilt -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
         
         <activity
             android:name=".MainActivity"

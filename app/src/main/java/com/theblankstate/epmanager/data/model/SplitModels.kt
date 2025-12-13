@@ -16,6 +16,7 @@ data class SplitGroup(
     val name: String,
     val description: String? = null,
     val emoji: String = "👥", // Group icon
+    val budget: Double? = null, // Optional overall budget for the group
     val createdAt: Long = System.currentTimeMillis()
 )
 

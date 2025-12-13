@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -18,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -32,7 +34,6 @@ import kotlin.math.absoluteValue
 
 private val groupEmojis = listOf("👥", "🏠", "✈️", "🍕", "🎉", "💼", "🎮", "🛒", "☕", "🚗")
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitScreen(
     onNavigateBack: () -> Unit,
@@ -48,9 +49,9 @@ fun SplitScreen(
             expenses = uiState.groupExpenses,
             balances = uiState.memberBalances,
             onNavigateBack = { viewModel.clearSelection() },
-            onAddExpense = { viewModel.showAddExpenseDialog() },
-            onAddMember = { viewModel.showAddMemberDialog() },
-            onSettle = { member -> viewModel.showSettleDialog(member) },
+            onAddExpense = { viewModel.showAddExpenseSheet() },
+            onAddMember = { viewModel.showAddMemberSheet() },
+            onSettle = { member -> viewModel.showSettleSheet(member) },
             onDelete = { viewModel.deleteGroup(uiState.selectedGroup!!) }
         )
     } else {
@@ -60,49 +61,51 @@ fun SplitScreen(
             isLoading = uiState.isLoading,
             onNavigateBack = onNavigateBack,
             onGroupClick = { viewModel.selectGroup(it.group) },
-            onCreateGroup = { viewModel.showCreateGroupDialog() }
+            onCreateGroup = { viewModel.showCreateGroupSheet() }
         )
     }
     
-    // Dialogs
-    if (uiState.showCreateGroupDialog) {
-        CreateGroupDialog(
-            onDismiss = { viewModel.hideCreateGroupDialog() },
-            onConfirm = { name, emoji, members ->
-                viewModel.createGroup(name, emoji, members)
+    // Bottom Sheets
+    if (uiState.showCreateGroupSheet) {
+        CreateGroupSheet(
+            onDismiss = { viewModel.hideCreateGroupSheet() },
+            onConfirm = { name, emoji, members, budget ->
+                viewModel.createGroup(name, emoji, members, budget)
             }
         )
     }
     
-    if (uiState.showAddExpenseDialog) {
-        AddExpenseDialog(
+    if (uiState.showAddExpenseSheet) {
+        AddExpenseSheet(
             members = uiState.groupMembers,
-            onDismiss = { viewModel.hideAddExpenseDialog() },
-            onConfirm = { desc, amount, paidBy ->
-                viewModel.addExpense(desc, amount, paidBy)
+            accounts = uiState.accounts,
+            onDismiss = { viewModel.hideAddExpenseSheet() },
+            onConfirm = { desc, amount, paidBy, accountId ->
+                viewModel.addExpense(desc, amount, paidBy, accountId)
             }
         )
     }
     
-    if (uiState.showAddMemberDialog) {
-        AddMemberDialog(
-            onDismiss = { viewModel.hideAddMemberDialog() },
+    if (uiState.showAddMemberSheet) {
+        AddMemberSheet(
+            onDismiss = { viewModel.hideAddMemberSheet() },
             onConfirm = { name, phone ->
                 viewModel.addMember(name, phone)
             }
         )
     }
     
-    if (uiState.showSettleDialog && uiState.settleWithMember != null) {
-        SettleDialog(
+    if (uiState.showSettleSheet && uiState.settleWithMember != null) {
+        SettleSheet(
             member = uiState.settleWithMember!!,
-            onDismiss = { viewModel.hideSettleDialog() },
-            onConfirm = { amount -> viewModel.settleUp(amount) }
+            balance = uiState.memberBalances.find { it.member.id == uiState.settleWithMember!!.id }?.balance ?: 0.0,
+            accounts = uiState.accounts,
+            onDismiss = { viewModel.hideSettleSheet() },
+            onConfirm = { amount, accountId -> viewModel.settleUp(amount, accountId) }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GroupsListScreen(
     groups: List<SplitGroupWithMembers>,
@@ -114,9 +117,7 @@ private fun GroupsListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text("Split Expenses", fontWeight = FontWeight.Bold) 
-                },
+                title = { Text("Split Expenses", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -208,6 +209,18 @@ private fun GroupCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // Show budget progress if budget is set
+                groupWithMembers.group.budget?.let { budget ->
+                    val progress = (groupWithMembers.totalExpenses / budget).coerceIn(0.0, 1.0)
+                    val isOverBudget = groupWithMembers.totalExpenses > budget
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { progress.toFloat() },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                        color = if (isOverBudget) Error else MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                }
             }
             
             Column(horizontalAlignment = Alignment.End) {
@@ -216,7 +229,14 @@ private fun GroupCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
+                // Show budget or "total" label
+                groupWithMembers.group.budget?.let { budget ->
+                    Text(
+                        "of ${formatCurrency(budget)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (groupWithMembers.totalExpenses > budget) Error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } ?: Text(
                     "total",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -226,7 +246,6 @@ private fun GroupCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GroupDetailScreen(
     group: SplitGroup,
@@ -278,59 +297,140 @@ private fun GroupDetailScreen(
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(paddingValues),
             contentPadding = PaddingValues(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            // Balances Section
+            // Members Row
             item {
-                Text("Balances", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-            
-            if (balances.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            "All settled up! 🎉",
-                            modifier = Modifier.padding(Spacing.lg),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            } else {
-                items(balances, key = { it.member.id }) { balance ->
-                    BalanceCard(balance = balance, onSettle = { onSettle(balance.member) })
-                }
-            }
-            
-            // Members Section
-            item {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text("Members (${members.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-            
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                ) {
                     items(members, key = { it.id }) { member ->
                         MemberChip(member = member)
                     }
                 }
             }
             
+            // Budget Status (if budget is set)
+            group.budget?.let { budget ->
+                val totalSpent = expenses.sumOf { it.totalAmount }
+                val progress = (totalSpent / budget).coerceIn(0.0, 1.0)
+                val isOverBudget = totalSpent > budget
+                val remaining = budget - totalSpent
+                
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isOverBudget) 
+                                Error.copy(alpha = 0.1f) 
+                            else 
+                                MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    if (isOverBudget) "Over Budget!" else "Budget",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isOverBudget) Error else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "${formatCurrency(totalSpent)} / ${formatCurrency(budget)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOverBudget) Error else MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            LinearProgressIndicator(
+                                progress = { progress.toFloat() },
+                                modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                                color = if (isOverBudget) Error else MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                if (isOverBudget) 
+                                    "₹${String.format("%.0f", -remaining)} over budget"
+                                else 
+                                    "₹${String.format("%.0f", remaining)} remaining",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isOverBudget) Error else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Balances Section
+            if (balances.isNotEmpty()) {
+                item {
+                    Text(
+                        "Balances",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                items(balances, key = { it.member.id }) { balance ->
+                    BalanceCard(balance = balance, onSettle = { onSettle(balance.member) })
+                }
+            } else if (expenses.isNotEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🎉", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Text(
+                                "All settled up!",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
+            
             // Expenses Section
             item {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text("Expenses (${expenses.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text(
+                    "Expenses (${expenses.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             
             if (expenses.isEmpty()) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().padding(Spacing.lg),
+                            modifier = Modifier.fillMaxWidth().padding(Spacing.xl),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text("💸", style = MaterialTheme.typography.displayMedium)
+                            Spacer(modifier = Modifier.height(Spacing.sm))
                             Text("No expenses yet", style = MaterialTheme.typography.bodyLarge)
-                            Text("Tap + to add one", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Tap + to add one",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -390,7 +490,10 @@ private fun BalanceCard(balance: MemberBalance, onSettle: () -> Unit) {
                 color = if (isOwed) Success else Error
             )
             Spacer(modifier = Modifier.width(Spacing.sm))
-            TextButton(onClick = onSettle) {
+            FilledTonalButton(
+                onClick = onSettle,
+                contentPadding = PaddingValues(horizontal = Spacing.md)
+            ) {
                 Text("Settle")
             }
         }
@@ -423,7 +526,7 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(expense.description, fontWeight = FontWeight.Medium)
                 Text(
-                    "Paid by ${paidBy?.name ?: "Unknown"} • ${formatDate(expense.date)}",
+                    "Paid by ${if (paidBy?.isCurrentUser == true) "You" else paidBy?.name ?: "Unknown"} • ${formatDate(expense.date)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -438,225 +541,461 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
     }
 }
 
+// ==================== BOTTOM SHEETS ====================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CreateGroupDialog(
+private fun CreateGroupSheet(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, emoji: String, members: List<String>) -> Unit
+    onConfirm: (name: String, emoji: String, members: List<String>, budget: Double?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var selectedEmoji by remember { mutableStateOf("👥") }
-    var member1 by remember { mutableStateOf("") }
-    var member2 by remember { mutableStateOf("") }
+    var memberNames by remember { mutableStateOf(listOf("")) }
+    var budgetText by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Create Group", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Group Name") },
-                    placeholder = { Text("Trip to Goa, Roommates...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Text("Icon", style = MaterialTheme.typography.labelMedium)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    items(groupEmojis) { emoji ->
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (emoji == selectedEmoji) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { selectedEmoji = emoji },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(emoji)
-                        }
-                    }
-                }
-                
-                Text("Add Members", style = MaterialTheme.typography.labelMedium)
-                OutlinedTextField(
-                    value = member1,
-                    onValueChange = { member1 = it },
-                    label = { Text("Member 1") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = member2,
-                    onValueChange = { member2 = it },
-                    label = { Text("Member 2") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { 
-                    if (name.isNotBlank()) {
-                        onConfirm(name, selectedEmoji, listOf(member1, member2))
-                    }
-                },
-                enabled = name.isNotBlank()
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddExpenseDialog(
-    members: List<GroupMember>,
-    onDismiss: () -> Unit,
-    onConfirm: (description: String, amount: Double, paidById: String) -> Unit
-) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var selectedPayer by remember { mutableStateOf(members.find { it.isCurrentUser }) }
-    var expanded by remember { mutableStateOf(false) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Expense", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    placeholder = { Text("Dinner, Taxi...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Amount") },
-                    prefix = { Text("₹") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedPayer?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Paid by") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        members.forEach { member ->
-                            DropdownMenuItem(
-                                text = { Text(if (member.isCurrentUser) "You" else member.name) },
-                                onClick = { selectedPayer = member; expanded = false }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amountValue = amount.toDoubleOrNull()
-                    if (description.isNotBlank() && amountValue != null && selectedPayer != null) {
-                        onConfirm(description, amountValue, selectedPayer!!.id)
-                    }
-                },
-                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null && selectedPayer != null
-            ) { Text("Add") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun AddMemberDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, phone: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Member", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Phone (optional)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank()) onConfirm(name, phone.ifBlank { null }) },
-                enabled = name.isNotBlank()
-            ) { Text("Add") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun SettleDialog(
-    member: GroupMember,
-    onDismiss: () -> Unit,
-    onConfirm: (amount: Double) -> Unit
-) {
-    var amount by remember { mutableStateOf("") }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Settle with ${member.name}", fontWeight = FontWeight.Bold) },
-        text = {
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text(
+                "Create Group",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
             OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text("Amount paid") },
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Group Name") },
+                placeholder = { Text("Trip to Goa, Roommates...") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            OutlinedTextField(
+                value = budgetText,
+                onValueChange = { budgetText = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Budget (optional)") },
+                placeholder = { Text("Set a spending limit") },
                 prefix = { Text("₹") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { amount.toDoubleOrNull()?.let { onConfirm(it) } },
-                enabled = amount.toDoubleOrNull() != null
-            ) { Text("Record Payment") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            Text("Choose Icon", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                items(groupEmojis) { emoji ->
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (emoji == selectedEmoji) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable { selectedEmoji = emoji },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(emoji, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Add Members", style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = { memberNames = memberNames + "" }) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add More")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            memberNames.forEachIndexed { index, memberName ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = memberName,
+                        onValueChange = { newName ->
+                            memberNames = memberNames.toMutableList().also { it[index] = newName }
+                        },
+                        label = { Text("Member ${index + 1}") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (memberNames.size > 1) {
+                        IconButton(
+                            onClick = {
+                                memberNames = memberNames.toMutableList().also { it.removeAt(index) }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                "Remove",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.sm))
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        val budget = budgetText.toDoubleOrNull()
+                        onConfirm(name, selectedEmoji, memberNames.filter { it.isNotBlank() }, budget)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = name.isNotBlank(),
+                shape = ButtonShape
+            ) {
+                Text("Create Group")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddExpenseSheet(
+    members: List<GroupMember>,
+    accounts: List<Account>,
+    onDismiss: () -> Unit,
+    onConfirm: (description: String, amount: Double, paidById: String, accountId: String?) -> Unit
+) {
+    var description by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var selectedPayer by remember { mutableStateOf(members.find { it.isCurrentUser }) }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
+    var payerExpanded by remember { mutableStateOf(false) }
+    var accountExpanded by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    val isPaidByMe = selectedPayer?.isCurrentUser == true
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Text(
+                "Add Expense",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                placeholder = { Text("Dinner, Taxi, Groceries...") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Amount") },
+                prefix = { Text("₹") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            ExposedDropdownMenuBox(
+                expanded = payerExpanded,
+                onExpandedChange = { payerExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = if (selectedPayer?.isCurrentUser == true) "You" else selectedPayer?.name ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Paid by") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(payerExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(expanded = payerExpanded, onDismissRequest = { payerExpanded = false }) {
+                    members.forEach { member ->
+                        DropdownMenuItem(
+                            text = { Text(if (member.isCurrentUser) "You" else member.name) },
+                            onClick = { selectedPayer = member; payerExpanded = false }
+                        )
+                    }
+                }
+            }
+            
+            // Show account selection only if paid by "You"
+            if (isPaidByMe && accounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                ExposedDropdownMenuBox(
+                    expanded = accountExpanded,
+                    onExpandedChange = { accountExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedAccount?.name ?: "Select Account",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("From Account") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
+                        accounts.forEach { account ->
+                            DropdownMenuItem(
+                                text = { Text(account.name) },
+                                onClick = { selectedAccount = account; accountExpanded = false }
+                            )
+                        }
+                    }
+                }
+                
+                Text(
+                    "This expense will be recorded as a transaction",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xs)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            Button(
+                onClick = {
+                    val amountValue = amount.toDoubleOrNull()
+                    if (description.isNotBlank() && amountValue != null && selectedPayer != null) {
+                        onConfirm(description, amountValue, selectedPayer!!.id, selectedAccount?.id)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = description.isNotBlank() && amount.toDoubleOrNull() != null && selectedPayer != null,
+                shape = ButtonShape
+            ) {
+                Text("Add Expense")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddMemberSheet(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, phone: String?) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState()
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Text(
+                "Add Member",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                placeholder = { Text("Enter member name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                label = { Text("Phone (optional)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name, phone.ifBlank { null }) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = name.isNotBlank(),
+                shape = ButtonShape
+            ) {
+                Text("Add Member")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettleSheet(
+    member: GroupMember,
+    balance: Double,
+    accounts: List<Account>,
+    onDismiss: () -> Unit,
+    onConfirm: (amount: Double, accountId: String?) -> Unit
+) {
+    var amount by remember { mutableStateOf(balance.absoluteValue.toString()) }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
+    var accountExpanded by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    
+    val isOwed = balance > 0 // They owe me
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Text(
+                "Settle with ${member.name}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isOwed) Success.copy(alpha = 0.1f) else Error.copy(alpha = 0.1f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        if (isOwed) "${member.name} owes you" else "You owe ${member.name}",
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        formatCurrency(balance.absoluteValue),
+                        fontWeight = FontWeight.Bold,
+                        color = if (isOwed) Success else Error
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Amount to settle") },
+                prefix = { Text("₹") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            // Account selection for recording transaction
+            if (accounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                ExposedDropdownMenuBox(
+                    expanded = accountExpanded,
+                    onExpandedChange = { accountExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = selectedAccount?.name ?: "Select Account (optional)",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(if (isOwed) "Receive to" else "Pay from") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
+                        accounts.forEach { account ->
+                            DropdownMenuItem(
+                                text = { Text(account.name) },
+                                onClick = { selectedAccount = account; accountExpanded = false }
+                            )
+                        }
+                    }
+                }
+                
+                Text(
+                    if (isOwed) "Record as income when ${member.name} pays you"
+                    else "Record as expense when you pay ${member.name}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xs)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            Button(
+                onClick = { amount.toDoubleOrNull()?.let { onConfirm(it, selectedAccount?.id) } },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = amount.toDoubleOrNull() != null,
+                shape = ButtonShape
+            ) {
+                Text("Record Settlement")
+            }
+        }
+    }
 }
 
 private fun formatDate(timestamp: Long): String {

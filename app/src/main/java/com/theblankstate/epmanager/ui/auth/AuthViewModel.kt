@@ -44,10 +44,10 @@ class AuthViewModel @Inject constructor(
                     ) 
                 }
                 
-                // Get last sync time if logged in
+                // Get last sync times if logged in
                 if (user != null) {
-                    val lastSync = syncManager.getLastSyncTime()
-                    _uiState.update { it.copy(lastSyncTime = lastSync) }
+                    val (settingsSync, transactionSync) = syncManager.getLastSyncTimes()
+                    _uiState.update { it.copy(lastSyncTime = settingsSync) }
                 }
             }
         }
@@ -185,18 +185,22 @@ class AuthViewModel @Inject constructor(
         }
     }
     
-    fun backupToCloud() {
+    /**
+     * Backup settings data to cloud (auto-sync data)
+     * This is also done automatically by BackgroundSyncWorker
+     */
+    fun backupSettingsToCloud() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncing = true, error = null) }
             
-            syncManager.backupToCloud()
+            syncManager.backupSettingsToCloud()
                 .onSuccess {
-                    val lastSync = syncManager.getLastSyncTime()
+                    val (settingsSync, _) = syncManager.getLastSyncTimes()
                     _uiState.update { 
                         it.copy(
                             isSyncing = false,
-                            lastSyncTime = lastSync,
-                            successMessage = "Backup complete!"
+                            lastSyncTime = settingsSync,
+                            successMessage = "Settings backup complete!"
                         ) 
                     }
                 }
@@ -208,16 +212,20 @@ class AuthViewModel @Inject constructor(
         }
     }
     
-    fun restoreFromCloud() {
+    /**
+     * Restore settings data from cloud
+     * Call this after reinstalling the app
+     */
+    fun restoreSettingsFromCloud() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncing = true, error = null) }
             
-            syncManager.restoreFromCloud()
+            syncManager.restoreSettingsFromCloud()
                 .onSuccess {
                     _uiState.update { 
                         it.copy(
                             isSyncing = false,
-                            successMessage = "Restore complete!"
+                            successMessage = "Settings restored!"
                         ) 
                     }
                 }
@@ -226,6 +234,130 @@ class AuthViewModel @Inject constructor(
                         it.copy(isSyncing = false, error = e.message) 
                     }
                 }
+        }
+    }
+    
+    /**
+     * Manual backup of transactions (NOT auto-synced)
+     */
+    fun backupTransactions() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, error = null) }
+            
+            syncManager.backupTransactionsToCloud()
+                .onSuccess {
+                    _uiState.update { 
+                        it.copy(
+                            isSyncing = false,
+                            successMessage = "Transactions backed up!"
+                        ) 
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update { 
+                        it.copy(isSyncing = false, error = e.message) 
+                    }
+                }
+        }
+    }
+    
+    /**
+     * Manual restore of transactions
+     */
+    fun restoreTransactions() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, error = null) }
+            
+            syncManager.restoreTransactionsFromCloud()
+                .onSuccess { count ->
+                    _uiState.update { 
+                        it.copy(
+                            isSyncing = false,
+                            successMessage = "Restored $count transactions!"
+                        ) 
+                    }
+                }
+                .onFailure { e ->
+                    _uiState.update { 
+                        it.copy(isSyncing = false, error = e.message) 
+                    }
+                }
+        }
+    }
+    
+    /**
+     * Backup everything - both settings and transactions
+     */
+    fun backupEverything() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, error = null) }
+            
+            // First backup settings
+            val settingsResult = syncManager.backupSettingsToCloud()
+            if (settingsResult.isFailure) {
+                _uiState.update { 
+                    it.copy(isSyncing = false, error = settingsResult.exceptionOrNull()?.message) 
+                }
+                return@launch
+            }
+            
+            // Then backup transactions
+            val transactionsResult = syncManager.backupTransactionsToCloud()
+            
+            transactionsResult.fold(
+                onSuccess = {
+                    val (settingsSync, _) = syncManager.getLastSyncTimes()
+                    _uiState.update { 
+                        it.copy(
+                            isSyncing = false,
+                            lastSyncTime = settingsSync,
+                            successMessage = "All data backed up!"
+                        ) 
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update { 
+                        it.copy(isSyncing = false, error = e.message) 
+                    }
+                }
+            )
+        }
+    }
+    
+    /**
+     * Restore everything - both settings and transactions
+     */
+    fun restoreEverything() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncing = true, error = null) }
+            
+            // First restore settings
+            val settingsResult = syncManager.restoreSettingsFromCloud()
+            if (settingsResult.isFailure) {
+                _uiState.update { 
+                    it.copy(isSyncing = false, error = "Settings restore failed: ${settingsResult.exceptionOrNull()?.message}") 
+                }
+                return@launch
+            }
+            
+            // Then restore transactions
+            val transactionsResult = syncManager.restoreTransactionsFromCloud()
+            
+            transactionsResult.fold(
+                onSuccess = { count ->
+                    _uiState.update { 
+                        it.copy(
+                            isSyncing = false,
+                            successMessage = "Restored settings + $count transactions!"
+                        ) 
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update { 
+                        it.copy(isSyncing = false, error = e.message) 
+                    }
+                }
+            )
         }
     }
     

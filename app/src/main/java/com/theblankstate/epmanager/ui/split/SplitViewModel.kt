@@ -3,7 +3,10 @@ package com.theblankstate.epmanager.ui.split
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.*
+import com.theblankstate.epmanager.data.repository.AccountRepository
+import com.theblankstate.epmanager.data.repository.CategoryRepository
 import com.theblankstate.epmanager.data.repository.SplitRepository
+import com.theblankstate.epmanager.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,17 +18,21 @@ data class SplitUiState(
     val groupMembers: List<GroupMember> = emptyList(),
     val groupExpenses: List<SplitExpense> = emptyList(),
     val memberBalances: List<MemberBalance> = emptyList(),
+    val accounts: List<Account> = emptyList(),
     val isLoading: Boolean = true,
-    val showCreateGroupDialog: Boolean = false,
-    val showAddExpenseDialog: Boolean = false,
-    val showAddMemberDialog: Boolean = false,
-    val showSettleDialog: Boolean = false,
+    val showCreateGroupSheet: Boolean = false,
+    val showAddExpenseSheet: Boolean = false,
+    val showAddMemberSheet: Boolean = false,
+    val showSettleSheet: Boolean = false,
     val settleWithMember: GroupMember? = null
 )
 
 @HiltViewModel
 class SplitViewModel @Inject constructor(
-    private val splitRepository: SplitRepository
+    private val splitRepository: SplitRepository,
+    private val transactionRepository: TransactionRepository,
+    private val accountRepository: AccountRepository,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(SplitUiState())
@@ -33,6 +40,11 @@ class SplitViewModel @Inject constructor(
     
     init {
         loadGroups()
+        loadAccounts()
+        // Ensure split categories exist (for existing databases)
+        viewModelScope.launch {
+            categoryRepository.ensureSplitCategoriesExist()
+        }
     }
     
     private fun loadGroups() {
@@ -56,6 +68,14 @@ class SplitViewModel @Inject constructor(
                         ) 
                     }
                 }
+        }
+    }
+    
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            accountRepository.getAllAccounts().collect { accounts ->
+                _uiState.update { it.copy(accounts = accounts) }
+            }
         }
     }
     
@@ -94,43 +114,43 @@ class SplitViewModel @Inject constructor(
         }
     }
     
-    // Dialog visibility
-    fun showCreateGroupDialog() {
-        _uiState.update { it.copy(showCreateGroupDialog = true) }
+    // Sheet visibility - renamed from dialog
+    fun showCreateGroupSheet() {
+        _uiState.update { it.copy(showCreateGroupSheet = true) }
     }
     
-    fun hideCreateGroupDialog() {
-        _uiState.update { it.copy(showCreateGroupDialog = false) }
+    fun hideCreateGroupSheet() {
+        _uiState.update { it.copy(showCreateGroupSheet = false) }
     }
     
-    fun showAddExpenseDialog() {
-        _uiState.update { it.copy(showAddExpenseDialog = true) }
+    fun showAddExpenseSheet() {
+        _uiState.update { it.copy(showAddExpenseSheet = true) }
     }
     
-    fun hideAddExpenseDialog() {
-        _uiState.update { it.copy(showAddExpenseDialog = false) }
+    fun hideAddExpenseSheet() {
+        _uiState.update { it.copy(showAddExpenseSheet = false) }
     }
     
-    fun showAddMemberDialog() {
-        _uiState.update { it.copy(showAddMemberDialog = true) }
+    fun showAddMemberSheet() {
+        _uiState.update { it.copy(showAddMemberSheet = true) }
     }
     
-    fun hideAddMemberDialog() {
-        _uiState.update { it.copy(showAddMemberDialog = false) }
+    fun hideAddMemberSheet() {
+        _uiState.update { it.copy(showAddMemberSheet = false) }
     }
     
-    fun showSettleDialog(member: GroupMember) {
-        _uiState.update { it.copy(showSettleDialog = true, settleWithMember = member) }
+    fun showSettleSheet(member: GroupMember) {
+        _uiState.update { it.copy(showSettleSheet = true, settleWithMember = member) }
     }
     
-    fun hideSettleDialog() {
-        _uiState.update { it.copy(showSettleDialog = false, settleWithMember = null) }
+    fun hideSettleSheet() {
+        _uiState.update { it.copy(showSettleSheet = false, settleWithMember = null) }
     }
     
     // Actions
-    fun createGroup(name: String, emoji: String, memberNames: List<String>) {
+    fun createGroup(name: String, emoji: String, memberNames: List<String>, budget: Double?) {
         viewModelScope.launch {
-            val group = SplitGroup(name = name, emoji = emoji)
+            val group = SplitGroup(name = name, emoji = emoji, budget = budget)
             splitRepository.insertGroup(group)
             
             // Add "You" as the first member
@@ -150,7 +170,7 @@ class SplitViewModel @Inject constructor(
             }
             splitRepository.insertMembers(otherMembers)
             
-            hideCreateGroupDialog()
+            hideCreateGroupSheet()
         }
     }
     
@@ -164,21 +184,41 @@ class SplitViewModel @Inject constructor(
                 phone = phone
             )
             splitRepository.insertMember(member)
-            hideAddMemberDialog()
+            hideAddMemberSheet()
         }
     }
     
-    fun addExpense(description: String, amount: Double, paidById: String) {
+    fun addExpense(description: String, amount: Double, paidById: String, accountId: String?) {
         val groupId = _uiState.value.selectedGroup?.id ?: return
+        val currentUser = _uiState.value.groupMembers.find { it.isCurrentUser }
+        val isPaidByMe = paidById == currentUser?.id
         
         viewModelScope.launch {
+            // Create the split expense
             splitRepository.addSplitExpense(
                 groupId = groupId,
                 description = description,
                 totalAmount = amount,
                 paidById = paidById
             )
-            hideAddExpenseDialog()
+            
+            // If paid by "You" and account is selected, create a transaction
+            if (isPaidByMe && accountId != null) {
+                val transaction = Transaction(
+                    amount = amount,
+                    type = TransactionType.EXPENSE,
+                    categoryId = "split_expense",
+                    accountId = accountId,
+                    date = System.currentTimeMillis(),
+                    note = "Split: $description (${_uiState.value.selectedGroup?.name})"
+                )
+                transactionRepository.insertTransaction(transaction)
+                
+                // Update account balance
+                accountRepository.updateBalance(accountId, -amount)
+            }
+            
+            hideAddExpenseSheet()
             
             // Refresh balances
             val balances = splitRepository.calculateBalances(groupId)
@@ -186,21 +226,66 @@ class SplitViewModel @Inject constructor(
         }
     }
     
-    fun settleUp(amount: Double) {
+    fun settleUp(amount: Double, accountId: String?) {
         val groupId = _uiState.value.selectedGroup?.id ?: return
         val settleWith = _uiState.value.settleWithMember ?: return
+        val currentUser = splitRepository.getCurrentUserMemberSync(_uiState.value.groupMembers)
+            ?: return
+        
+        val balance = _uiState.value.memberBalances.find { it.member.id == settleWith.id }?.balance ?: 0.0
+        val isOwed = balance > 0 // They owe me
         
         viewModelScope.launch {
-            val currentUser = splitRepository.getCurrentUserMember(groupId) ?: return@launch
-            
-            val settlement = Settlement(
-                groupId = groupId,
-                fromMemberId = currentUser.id,
-                toMemberId = settleWith.id,
-                amount = amount
-            )
+            // Create settlement record
+            val settlement = if (isOwed) {
+                // They owe me - they are paying me
+                Settlement(
+                    groupId = groupId,
+                    fromMemberId = settleWith.id,
+                    toMemberId = currentUser.id,
+                    amount = amount
+                )
+            } else {
+                // I owe them - I am paying them
+                Settlement(
+                    groupId = groupId,
+                    fromMemberId = currentUser.id,
+                    toMemberId = settleWith.id,
+                    amount = amount
+                )
+            }
             splitRepository.insertSettlement(settlement)
-            hideSettleDialog()
+            
+            // Create transaction if account is selected
+            if (accountId != null) {
+                if (isOwed) {
+                    // I'm receiving money - INCOME
+                    val transaction = Transaction(
+                        amount = amount,
+                        type = TransactionType.INCOME,
+                        categoryId = "split_payoff",
+                        accountId = accountId,
+                        date = System.currentTimeMillis(),
+                        note = "Split Payoff from ${settleWith.name}"
+                    )
+                    transactionRepository.insertTransaction(transaction)
+                    accountRepository.updateBalance(accountId, amount)
+                } else {
+                    // I'm paying money - EXPENSE
+                    val transaction = Transaction(
+                        amount = amount,
+                        type = TransactionType.EXPENSE,
+                        categoryId = "split_expense",
+                        accountId = accountId,
+                        date = System.currentTimeMillis(),
+                        note = "Split Payoff to ${settleWith.name}"
+                    )
+                    transactionRepository.insertTransaction(transaction)
+                    accountRepository.updateBalance(accountId, -amount)
+                }
+            }
+            
+            hideSettleSheet()
             
             // Refresh balances
             val balances = splitRepository.calculateBalances(groupId)

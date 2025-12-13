@@ -45,4 +45,35 @@ class CategoryRepository @Inject constructor(
             categoryDao.insertCategories(DefaultCategories.all)
         }
     }
+    
+    /**
+     * Ensure split expense categories exist (for existing databases)
+     */
+    suspend fun ensureSplitCategoriesExist() {
+        // Check if split_expense category exists
+        if (categoryDao.getCategoryById("split_expense") == null) {
+            val splitExpense = Category(
+                id = "split_expense",
+                name = "Split Expense",
+                icon = "Groups",
+                color = 0xFF10B981,
+                type = CategoryType.EXPENSE,
+                isDefault = true
+            )
+            categoryDao.insertCategory(splitExpense)
+        }
+        
+        // Check if split_payoff category exists
+        if (categoryDao.getCategoryById("split_payoff") == null) {
+            val splitPayoff = Category(
+                id = "split_payoff",
+                name = "Split Payoff",
+                icon = "Handshake",
+                color = 0xFF10B981,
+                type = CategoryType.INCOME,
+                isDefault = true
+            )
+            categoryDao.insertCategory(splitPayoff)
+        }
+    }
 }
