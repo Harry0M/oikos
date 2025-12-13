@@ -34,6 +34,7 @@ fun SettingsScreen(
     onNavigateToSubscriptions: () -> Unit = {},
     onNavigateToSplit: () -> Unit = {},
     onNavigateToSmsSettings: () -> Unit = {},
+    onNavigateToFriends: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
@@ -112,6 +113,25 @@ fun SettingsScreen(
                 onClick = onNavigateToLogin
             )
         }
+        
+        Spacer(modifier = Modifier.height(Spacing.lg))
+        
+        // Social Section
+        SettingsSectionHeader("Social")
+        
+        SettingsItem(
+            icon = Icons.Filled.People,
+            title = "Friends",
+            subtitle = "Add friends for shared expenses",
+            onClick = onNavigateToFriends
+        )
+        
+        SettingsItem(
+            icon = Icons.Filled.Groups,
+            title = "Split Expenses",
+            subtitle = "Track shared expenses with groups",
+            onClick = onNavigateToSplit
+        )
         
         Spacer(modifier = Modifier.height(Spacing.lg))
         

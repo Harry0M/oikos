@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.theblankstate.epmanager.data.sync.SettlementSyncManager
 import com.theblankstate.epmanager.navigation.AppNavHost
 import com.theblankstate.epmanager.navigation.BottomNavItem
 import com.theblankstate.epmanager.navigation.Screen
@@ -31,17 +32,31 @@ import com.theblankstate.epmanager.sms.SmsPermissionManager
 import com.theblankstate.epmanager.ui.theme.EpmanagerTheme
 import com.theblankstate.epmanager.ui.theme.Spacing
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    
+    @Inject
+    lateinit var settlementSyncManager: SettlementSyncManager
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Start listening for settlement notifications from linked friends
+        settlementSyncManager.startListening()
+        
         enableEdgeToEdge()
         setContent {
             EpmanagerTheme {
                 ExpenseManagerApp()
             }
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        settlementSyncManager.stopListening()
     }
 }
 

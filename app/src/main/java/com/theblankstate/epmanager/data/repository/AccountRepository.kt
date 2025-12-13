@@ -27,6 +27,9 @@ class AccountRepository @Inject constructor(
     suspend fun getDefaultAccount(): Account? = 
         accountDao.getDefaultAccount()
     
+    suspend fun getDefaultAccountSync(): Account? = 
+        accountDao.getDefaultAccount()
+    
     suspend fun insertAccount(account: Account) {
         accountDao.insertAccount(account)
     }

@@ -68,9 +68,10 @@ fun SplitScreen(
     // Bottom Sheets
     if (uiState.showCreateGroupSheet) {
         CreateGroupSheet(
+            friends = uiState.friends,
             onDismiss = { viewModel.hideCreateGroupSheet() },
-            onConfirm = { name, emoji, members, budget ->
-                viewModel.createGroup(name, emoji, members, budget)
+            onConfirm = { name, emoji, members, selectedFriends, budget ->
+                viewModel.createGroup(name, emoji, members, selectedFriends, budget)
             }
         )
     }
@@ -88,9 +89,14 @@ fun SplitScreen(
     
     if (uiState.showAddMemberSheet) {
         AddMemberSheet(
+            friends = uiState.friends,
+            existingMembers = uiState.groupMembers,
             onDismiss = { viewModel.hideAddMemberSheet() },
-            onConfirm = { name, phone ->
+            onConfirmManual = { name, phone ->
                 viewModel.addMember(name, phone)
+            },
+            onConfirmFriend = { friend ->
+                viewModel.addLinkedMember(friend)
             }
         )
     }
@@ -546,12 +552,14 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateGroupSheet(
+    friends: List<Friend> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (name: String, emoji: String, members: List<String>, budget: Double?) -> Unit
+    onConfirm: (name: String, emoji: String, members: List<String>, selectedFriends: List<Friend>, budget: Double?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var selectedEmoji by remember { mutableStateOf("👥") }
     var memberNames by remember { mutableStateOf(listOf("")) }
+    var selectedFriends by remember { mutableStateOf<Set<Friend>>(emptySet()) }
     var budgetText by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -621,12 +629,63 @@ private fun CreateGroupSheet(
             
             Spacer(modifier = Modifier.height(Spacing.lg))
             
+            // Linked Friends Section
+            if (friends.isNotEmpty()) {
+                Text(
+                    "Add Linked Friends",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    "Tap to add to group",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    items(friends, key = { it.odiserId }) { friend ->
+                        val isSelected = selectedFriends.contains(friend)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedFriends = if (isSelected) {
+                                    selectedFriends - friend
+                                } else {
+                                    selectedFriends + friend
+                                }
+                            },
+                            label = { 
+                                Text(friend.displayName ?: friend.email.substringBefore("@"))
+                            },
+                            leadingIcon = {
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Filled.Link,
+                                        null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+            }
+            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Add Members", style = MaterialTheme.typography.labelLarge)
+                Text("Add Manual Members", style = MaterialTheme.typography.labelLarge)
                 TextButton(onClick = { memberNames = memberNames + "" }) {
                     Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -673,7 +732,13 @@ private fun CreateGroupSheet(
                 onClick = {
                     if (name.isNotBlank()) {
                         val budget = budgetText.toDoubleOrNull()
-                        onConfirm(name, selectedEmoji, memberNames.filter { it.isNotBlank() }, budget)
+                        onConfirm(
+                            name, 
+                            selectedEmoji, 
+                            memberNames.filter { it.isNotBlank() },
+                            selectedFriends.toList(),
+                            budget
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -823,12 +888,19 @@ private fun AddExpenseSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddMemberSheet(
+    friends: List<Friend> = emptyList(),
+    existingMembers: List<GroupMember> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (name: String, phone: String?) -> Unit
+    onConfirmManual: (name: String, phone: String?) -> Unit,
+    onConfirmFriend: (Friend) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     val sheetState = rememberModalBottomSheetState()
+    
+    // Filter out friends that are already members
+    val existingLinkedUserIds = existingMembers.mapNotNull { it.linkedUserId }.toSet()
+    val availableFriends = friends.filter { it.odiserId !in existingLinkedUserIds }
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -846,7 +918,58 @@ private fun AddMemberSheet(
                 fontWeight = FontWeight.Bold
             )
             
+            // Show linked friends quick-add
+            if (availableFriends.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                Text(
+                    "Add Linked Friend",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    "Tap to add instantly",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    items(availableFriends, key = { it.odiserId }) { friend ->
+                        SuggestionChip(
+                            onClick = {
+                                onConfirmFriend(friend)
+                                onDismiss()
+                            },
+                            label = { 
+                                Text(friend.displayName ?: friend.email.substringBefore("@"))
+                            },
+                            icon = {
+                                Icon(
+                                    Icons.Filled.Link,
+                                    null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                HorizontalDivider()
+            }
+            
             Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            Text(
+                "Or Add Manually",
+                style = MaterialTheme.typography.labelLarge
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
             
             OutlinedTextField(
                 value = name,
@@ -871,7 +994,7 @@ private fun AddMemberSheet(
             Spacer(modifier = Modifier.height(Spacing.xl))
             
             Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name, phone.ifBlank { null }) },
+                onClick = { if (name.isNotBlank()) onConfirmManual(name, phone.ifBlank { null }) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = name.isNotBlank(),
                 shape = ButtonShape

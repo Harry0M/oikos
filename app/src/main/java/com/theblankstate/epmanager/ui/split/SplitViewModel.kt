@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.*
 import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
+import com.theblankstate.epmanager.data.repository.FriendsRepository
 import com.theblankstate.epmanager.data.repository.SplitRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +20,7 @@ data class SplitUiState(
     val groupExpenses: List<SplitExpense> = emptyList(),
     val memberBalances: List<MemberBalance> = emptyList(),
     val accounts: List<Account> = emptyList(),
+    val friends: List<Friend> = emptyList(), // Linked friends for quick-add
     val isLoading: Boolean = true,
     val showCreateGroupSheet: Boolean = false,
     val showAddExpenseSheet: Boolean = false,
@@ -32,7 +34,8 @@ class SplitViewModel @Inject constructor(
     private val splitRepository: SplitRepository,
     private val transactionRepository: TransactionRepository,
     private val accountRepository: AccountRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(SplitUiState())
@@ -41,6 +44,7 @@ class SplitViewModel @Inject constructor(
     init {
         loadGroups()
         loadAccounts()
+        loadFriends()
         // Ensure split categories exist (for existing databases)
         viewModelScope.launch {
             categoryRepository.ensureSplitCategoriesExist()
@@ -75,6 +79,14 @@ class SplitViewModel @Inject constructor(
         viewModelScope.launch {
             accountRepository.getAllAccounts().collect { accounts ->
                 _uiState.update { it.copy(accounts = accounts) }
+            }
+        }
+    }
+    
+    private fun loadFriends() {
+        viewModelScope.launch {
+            friendsRepository.getFriends().collect { friends ->
+                _uiState.update { it.copy(friends = friends) }
             }
         }
     }
@@ -148,7 +160,13 @@ class SplitViewModel @Inject constructor(
     }
     
     // Actions
-    fun createGroup(name: String, emoji: String, memberNames: List<String>, budget: Double?) {
+    fun createGroup(
+        name: String, 
+        emoji: String, 
+        memberNames: List<String>, 
+        linkedFriends: List<Friend>,
+        budget: Double?
+    ) {
         viewModelScope.launch {
             val group = SplitGroup(name = name, emoji = emoji, budget = budget)
             splitRepository.insertGroup(group)
@@ -161,14 +179,25 @@ class SplitViewModel @Inject constructor(
             )
             splitRepository.insertMember(youMember)
             
-            // Add other members
-            val otherMembers = memberNames.filter { it.isNotBlank() }.map { memberName ->
+            // Add manual members (offline, no linked account)
+            val manualMembers = memberNames.filter { it.isNotBlank() }.map { memberName ->
                 GroupMember(
                     groupId = group.id,
                     name = memberName
                 )
             }
-            splitRepository.insertMembers(otherMembers)
+            splitRepository.insertMembers(manualMembers)
+            
+            // Add linked friends (with their Firebase userId)
+            val linkedMembers = linkedFriends.map { friend ->
+                GroupMember(
+                    groupId = group.id,
+                    name = friend.displayName ?: friend.email.substringBefore("@"),
+                    email = friend.email,
+                    linkedUserId = friend.odiserId
+                )
+            }
+            splitRepository.insertMembers(linkedMembers)
             
             hideCreateGroupSheet()
         }
@@ -182,6 +211,29 @@ class SplitViewModel @Inject constructor(
                 groupId = groupId,
                 name = name,
                 phone = phone
+            )
+            splitRepository.insertMember(member)
+            hideAddMemberSheet()
+        }
+    }
+    
+    fun addLinkedMember(friend: Friend) {
+        val groupId = _uiState.value.selectedGroup?.id ?: return
+        val existingMembers = _uiState.value.groupMembers
+        
+        // Check if already in group (by linkedUserId)
+        if (existingMembers.any { it.linkedUserId == friend.odiserId }) {
+            // Already in group, don't add again
+            hideAddMemberSheet()
+            return
+        }
+        
+        viewModelScope.launch {
+            val member = GroupMember(
+                groupId = groupId,
+                name = friend.displayName ?: friend.email.substringBefore("@"),
+                email = friend.email,
+                linkedUserId = friend.odiserId
             )
             splitRepository.insertMember(member)
             hideAddMemberSheet()
@@ -228,6 +280,7 @@ class SplitViewModel @Inject constructor(
     
     fun settleUp(amount: Double, accountId: String?) {
         val groupId = _uiState.value.selectedGroup?.id ?: return
+        val groupName = _uiState.value.selectedGroup?.name ?: "Split Group"
         val settleWith = _uiState.value.settleWithMember ?: return
         val currentUser = splitRepository.getCurrentUserMemberSync(_uiState.value.groupMembers)
             ?: return
@@ -283,6 +336,16 @@ class SplitViewModel @Inject constructor(
                     transactionRepository.insertTransaction(transaction)
                     accountRepository.updateBalance(accountId, -amount)
                 }
+            }
+            
+            // Send notification to linked friend if applicable
+            settleWith.linkedUserId?.let { linkedUserId ->
+                friendsRepository.sendSettlementNotification(
+                    toUserId = linkedUserId,
+                    amount = amount,
+                    groupId = groupId,
+                    groupName = groupName
+                )
             }
             
             hideSettleSheet()

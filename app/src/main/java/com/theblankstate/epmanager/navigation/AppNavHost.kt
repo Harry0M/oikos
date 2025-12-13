@@ -17,6 +17,7 @@ import com.theblankstate.epmanager.ui.budget.BudgetScreen
 import com.theblankstate.epmanager.ui.categories.CategoriesScreen
 import com.theblankstate.epmanager.ui.accounts.AccountsScreen
 import com.theblankstate.epmanager.ui.export.ExportScreen
+import com.theblankstate.epmanager.ui.friends.FriendsScreen
 import com.theblankstate.epmanager.ui.goals.GoalsScreen
 import com.theblankstate.epmanager.ui.home.HomeScreen
 import com.theblankstate.epmanager.ui.notifications.NotificationSettingsScreen
@@ -203,6 +204,18 @@ fun AppNavHost(
                 },
                 onNavigateToSmsSettings = {
                     navController.navigate(Screen.SmsSettings.route)
+                },
+                onNavigateToFriends = {
+                    navController.navigate(Screen.Friends.route)
+                }
+            )
+        }
+        
+        // Friends screen
+        composable(Screen.Friends.route) {
+            FriendsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

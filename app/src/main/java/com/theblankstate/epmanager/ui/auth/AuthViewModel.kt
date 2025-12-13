@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseUser
 import com.theblankstate.epmanager.data.repository.AuthRepository
 import com.theblankstate.epmanager.data.repository.AuthResult
+import com.theblankstate.epmanager.data.repository.FriendsRepository
 import com.theblankstate.epmanager.data.sync.FirebaseSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -24,7 +25,8 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val syncManager: FirebaseSyncManager
+    private val syncManager: FirebaseSyncManager,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -64,6 +66,9 @@ class AuthViewModel @Inject constructor(
             
             when (val result = authRepository.signInWithEmail(email, password)) {
                 is AuthResult.Success -> {
+                    // Register user for friend lookup
+                    friendsRepository.ensureUserProfile()
+                    
                     _uiState.update { 
                         it.copy(
                             isLoading = false,
@@ -104,6 +109,9 @@ class AuthViewModel @Inject constructor(
             
             when (val result = authRepository.signUpWithEmail(email, password)) {
                 is AuthResult.Success -> {
+                    // Register user for friend lookup
+                    friendsRepository.ensureUserProfile()
+                    
                     _uiState.update { 
                         it.copy(
                             isLoading = false,
@@ -129,6 +137,9 @@ class AuthViewModel @Inject constructor(
             
             when (val result = authRepository.signInWithGoogle(idToken)) {
                 is AuthResult.Success -> {
+                    // Register user for friend lookup
+                    friendsRepository.ensureUserProfile()
+                    
                     _uiState.update { 
                         it.copy(
                             isLoading = false,

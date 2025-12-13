@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.theblankstate.epmanager.data.local.dao.AccountDao
 import com.theblankstate.epmanager.data.local.dao.BudgetDao
 import com.theblankstate.epmanager.data.local.dao.CategoryDao
+import com.theblankstate.epmanager.data.local.dao.FriendDao
 import com.theblankstate.epmanager.data.local.dao.RecurringExpenseDao
 import com.theblankstate.epmanager.data.local.dao.SavingsGoalDao
 import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
@@ -16,6 +17,8 @@ import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Budget
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.ExpenseShare
+import com.theblankstate.epmanager.data.model.Friend
+import com.theblankstate.epmanager.data.model.FriendRequest
 import com.theblankstate.epmanager.data.model.GroupMember
 import com.theblankstate.epmanager.data.model.PendingSms
 import com.theblankstate.epmanager.data.model.RecurringExpense
@@ -40,9 +43,11 @@ import com.theblankstate.epmanager.data.model.Transaction
         ExpenseShare::class,
         Settlement::class,
         SmsTemplate::class,
-        PendingSms::class
+        PendingSms::class,
+        Friend::class,
+        FriendRequest::class
     ],
-    version = 9, // Added budget field to SplitGroup
+    version = 10, // Added Friends system
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -54,6 +59,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun splitDao(): SplitDao
     abstract fun smsTemplateDao(): SmsTemplateDao
+    abstract fun friendDao(): FriendDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"

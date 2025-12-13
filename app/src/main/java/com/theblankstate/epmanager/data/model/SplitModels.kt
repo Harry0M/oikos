@@ -42,6 +42,7 @@ data class GroupMember(
     val name: String,
     val phone: String? = null,
     val email: String? = null,
+    val linkedUserId: String? = null, // Firebase UID if linked to real user
     val isCurrentUser: Boolean = false, // "You"
     val createdAt: Long = System.currentTimeMillis()
 )

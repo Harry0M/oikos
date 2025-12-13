@@ -284,12 +284,13 @@ private fun CompactBudgetItem(
             
             Spacer(modifier = Modifier.width(Spacing.sm))
             
-            // Category name and period
-            Column(modifier = Modifier.weight(1f)) {
+            // Category name and period (fixed width)
+            Column(modifier = Modifier.width(80.dp)) {
                 Text(
                     text = category?.name ?: "Unknown",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
                 Text(
                     text = budgetWithSpending.budget.period.label,
@@ -298,27 +299,43 @@ private fun CompactBudgetItem(
                 )
             }
             
-            // Compact progress bar
-            Box(
-                modifier = Modifier
-                    .width(60.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            
+            // Progress bar in the middle (takes remaining space)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedProgress)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(if (isOverBudget) Error else categoryColor)
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedProgress)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isOverBudget) Error else categoryColor)
+                    )
+                }
+                Text(
+                    text = "${(percentage * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isOverBudget) Error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
             
             Spacer(modifier = Modifier.width(Spacing.sm))
             
-            // Amount
-            Column(horizontalAlignment = Alignment.End) {
+            // Amount (fixed width)
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.width(80.dp)
+            ) {
                 Text(
                     text = formatCurrency(budgetWithSpending.spent),
                     style = MaterialTheme.typography.bodyMedium,
@@ -332,7 +349,7 @@ private fun CompactBudgetItem(
                 )
             }
             
-            // Delete button (smaller)
+            // Delete button
             IconButton(
                 onClick = { showDeleteConfirm = true },
                 modifier = Modifier.size(32.dp)
