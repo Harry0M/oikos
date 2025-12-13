@@ -16,6 +16,7 @@ import com.theblankstate.epmanager.ui.auth.SignUpScreen
 import com.theblankstate.epmanager.ui.budget.BudgetScreen
 import com.theblankstate.epmanager.ui.categories.CategoriesScreen
 import com.theblankstate.epmanager.ui.accounts.AccountsScreen
+import com.theblankstate.epmanager.ui.debt.DebtScreen
 import com.theblankstate.epmanager.ui.export.ExportScreen
 import com.theblankstate.epmanager.ui.friends.FriendsScreen
 import com.theblankstate.epmanager.ui.goals.GoalsScreen
@@ -49,6 +50,30 @@ fun AppNavHost(
                 },
                 onNavigateToTransactionDetail = { transactionId ->
                     navController.navigate(Screen.TransactionDetail.createRoute(transactionId))
+                },
+                onNavigateToAccounts = {
+                    navController.navigate(Screen.Accounts.route)
+                },
+                onNavigateToRecurring = {
+                    navController.navigate(Screen.Recurring.route)
+                },
+                onNavigateToSubscriptions = {
+                    navController.navigate(Screen.Subscriptions.route)
+                },
+                onNavigateToGoals = {
+                    navController.navigate(Screen.Goals.route)
+                },
+                onNavigateToDebtCredit = {
+                    navController.navigate(Screen.DebtCredit.route)
+                },
+                onNavigateToSplit = {
+                    navController.navigate(Screen.Split.route)
+                },
+                onNavigateToFriends = {
+                    navController.navigate(Screen.Friends.route)
+                },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
                 }
             )
         }
@@ -207,6 +232,9 @@ fun AppNavHost(
                 },
                 onNavigateToFriends = {
                     navController.navigate(Screen.Friends.route)
+                },
+                onNavigateToDebtCredit = {
+                    navController.navigate(Screen.DebtCredit.route)
                 }
             )
         }
@@ -255,6 +283,14 @@ fun AppNavHost(
         
         composable(Screen.SmsSettings.route) {
             SmsSettingsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Screen.DebtCredit.route) {
+            DebtScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }

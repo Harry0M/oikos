@@ -38,6 +38,7 @@ object DefaultCategories {
         Category(id = "subscriptions", name = "Subscriptions", icon = "Subscriptions", color = 0xFFA29BFE, type = CategoryType.EXPENSE, isDefault = true),
         Category(id = "travel", name = "Travel", icon = "Flight", color = 0xFFFD79A8, type = CategoryType.EXPENSE, isDefault = true),
         Category(id = "split_expense", name = "Split Expense", icon = "Groups", color = 0xFF10B981, type = CategoryType.EXPENSE, isDefault = true),
+        Category(id = "debt_payment", name = "Debt Payment", icon = "CreditCard", color = 0xFFEF4444, type = CategoryType.EXPENSE, isDefault = true),
         Category(id = "other_expense", name = "Other", icon = "MoreHoriz", color = 0xFF9CA3AF, type = CategoryType.EXPENSE, isDefault = true)
     )
     
@@ -48,6 +49,8 @@ object DefaultCategories {
         Category(id = "gift", name = "Gift", icon = "CardGiftcard", color = 0xFF8B5CF6, type = CategoryType.INCOME, isDefault = true),
         Category(id = "refund", name = "Refund", icon = "Replay", color = 0xFFF59E0B, type = CategoryType.INCOME, isDefault = true),
         Category(id = "split_payoff", name = "Split Payoff", icon = "Handshake", color = 0xFF10B981, type = CategoryType.INCOME, isDefault = true),
+        Category(id = "goals", name = "Goals", icon = "Savings", color = 0xFF22C55E, type = CategoryType.INCOME, isDefault = true),
+        Category(id = "credit_received", name = "Credit Received", icon = "CreditCard", color = 0xFF22C55E, type = CategoryType.INCOME, isDefault = true),
         Category(id = "adjustment", name = "Adjustment", icon = "SwapVert", color = 0xFF6B7280, type = CategoryType.INCOME, isDefault = true),
         Category(id = "other_income", name = "Other", icon = "MoreHoriz", color = 0xFF9CA3AF, type = CategoryType.INCOME, isDefault = true)
     )

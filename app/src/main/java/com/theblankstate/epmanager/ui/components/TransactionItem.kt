@@ -81,13 +81,34 @@ fun TransactionItem(
                 )
                 
                 if (!transaction.note.isNullOrBlank()) {
-                    Text(
-                        text = transaction.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // Check if this is a goal contribution (note starts with "Toward")
+                    val isGoalContribution = transaction.note.startsWith("Toward ")
+                    
+                    if (isGoalContribution) {
+                        // Highlight goal name
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🎯 ",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                text = transaction.note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Green,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = transaction.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 
                 Text(

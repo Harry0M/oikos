@@ -6,6 +6,7 @@ import com.theblankstate.epmanager.data.local.ExpenseDatabase
 import com.theblankstate.epmanager.data.local.dao.AccountDao
 import com.theblankstate.epmanager.data.local.dao.BudgetDao
 import com.theblankstate.epmanager.data.local.dao.CategoryDao
+import com.theblankstate.epmanager.data.local.dao.DebtDao
 import com.theblankstate.epmanager.data.local.dao.FriendDao
 import com.theblankstate.epmanager.data.local.dao.RecurringExpenseDao
 import com.theblankstate.epmanager.data.local.dao.SavingsGoalDao
@@ -89,5 +90,11 @@ object DatabaseModule {
     @Singleton
     fun provideFriendDao(database: ExpenseDatabase): FriendDao {
         return database.friendDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideDebtDao(database: ExpenseDatabase): DebtDao {
+        return database.debtDao()
     }
 }

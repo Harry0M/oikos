@@ -75,5 +75,44 @@ class CategoryRepository @Inject constructor(
             )
             categoryDao.insertCategory(splitPayoff)
         }
+        
+        // Check if goals category exists
+        if (categoryDao.getCategoryById("goals") == null) {
+            val goalsCategory = Category(
+                id = "goals",
+                name = "Goals",
+                icon = "Savings",
+                color = 0xFF22C55E,
+                type = CategoryType.INCOME,
+                isDefault = true
+            )
+            categoryDao.insertCategory(goalsCategory)
+        }
+        
+        // Check if debt_payment category exists
+        if (categoryDao.getCategoryById("debt_payment") == null) {
+            val debtPayment = Category(
+                id = "debt_payment",
+                name = "Debt Payment",
+                icon = "CreditCard",
+                color = 0xFFEF4444,
+                type = CategoryType.EXPENSE,
+                isDefault = true
+            )
+            categoryDao.insertCategory(debtPayment)
+        }
+        
+        // Check if credit_received category exists
+        if (categoryDao.getCategoryById("credit_received") == null) {
+            val creditReceived = Category(
+                id = "credit_received",
+                name = "Credit Received",
+                icon = "CreditCard",
+                color = 0xFF22C55E,
+                type = CategoryType.INCOME,
+                isDefault = true
+            )
+            categoryDao.insertCategory(creditReceived)
+        }
     }
 }

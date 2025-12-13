@@ -35,6 +35,7 @@ fun SettingsScreen(
     onNavigateToSplit: () -> Unit = {},
     onNavigateToSmsSettings: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
+    onNavigateToDebtCredit: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
@@ -131,6 +132,13 @@ fun SettingsScreen(
             title = "Split Expenses",
             subtitle = "Track shared expenses with groups",
             onClick = onNavigateToSplit
+        )
+        
+        SettingsItem(
+            icon = Icons.Filled.CreditCard,
+            title = "Debts & Credits",
+            subtitle = "Track money you owe or are owed",
+            onClick = onNavigateToDebtCredit
         )
         
         Spacer(modifier = Modifier.height(Spacing.lg))

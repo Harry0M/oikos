@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.theblankstate.epmanager.data.local.dao.AccountDao
 import com.theblankstate.epmanager.data.local.dao.BudgetDao
 import com.theblankstate.epmanager.data.local.dao.CategoryDao
+import com.theblankstate.epmanager.data.local.dao.DebtDao
 import com.theblankstate.epmanager.data.local.dao.FriendDao
 import com.theblankstate.epmanager.data.local.dao.RecurringExpenseDao
 import com.theblankstate.epmanager.data.local.dao.SavingsGoalDao
@@ -16,6 +17,8 @@ import com.theblankstate.epmanager.data.local.dao.TransactionDao
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Budget
 import com.theblankstate.epmanager.data.model.Category
+import com.theblankstate.epmanager.data.model.Debt
+import com.theblankstate.epmanager.data.model.DebtPayment
 import com.theblankstate.epmanager.data.model.ExpenseShare
 import com.theblankstate.epmanager.data.model.Friend
 import com.theblankstate.epmanager.data.model.FriendRequest
@@ -45,9 +48,11 @@ import com.theblankstate.epmanager.data.model.Transaction
         SmsTemplate::class,
         PendingSms::class,
         Friend::class,
-        FriendRequest::class
+        FriendRequest::class,
+        Debt::class,
+        DebtPayment::class
     ],
-    version = 10, // Added Friends system
+    version = 12, // Removed FK constraint from Debt
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -60,6 +65,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun splitDao(): SplitDao
     abstract fun smsTemplateDao(): SmsTemplateDao
     abstract fun friendDao(): FriendDao
+    abstract fun debtDao(): DebtDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"

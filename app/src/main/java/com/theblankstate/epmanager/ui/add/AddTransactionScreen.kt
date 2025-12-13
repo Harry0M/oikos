@@ -57,6 +57,10 @@ fun AddTransactionScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
+    // State for picker sheets
+    var showCategorySheet by remember { mutableStateOf(false) }
+    var showAccountSheet by remember { mutableStateOf(false) }
+    
     // Location permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -176,7 +180,8 @@ fun AddTransactionScreen(
             CategorySelector(
                 categories = uiState.categories,
                 selectedCategory = uiState.selectedCategory,
-                onCategorySelected = viewModel::selectCategory
+                onCategorySelected = viewModel::selectCategory,
+                onShowMore = { showCategorySheet = true }
             )
             
             Spacer(modifier = Modifier.height(Spacing.xl))
@@ -203,33 +208,65 @@ fun AddTransactionScreen(
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                items(
-                    items = uiState.accounts,
-                    key = { it.id }
-                ) { account ->
-                    val isSelected = account.id == uiState.selectedAccount?.id
+            run {
+                // Show max 5 accounts, plus More button if needed
+                val displayAccounts: List<Account> = if (uiState.accounts.size <= 5) {
+                    uiState.accounts
+                } else {
+                    val first5 = uiState.accounts.take(5)
+                    if (uiState.selectedAccount != null && uiState.selectedAccount !in first5) {
+                        (listOf(uiState.selectedAccount) + first5.take(4)).filterNotNull()
+                    } else {
+                        first5
+                    }
+                }
+                
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    items(
+                        items = displayAccounts,
+                        key = { it.id }
+                    ) { account ->
+                        val isSelected = account.id == uiState.selectedAccount?.id
+                        
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.selectAccount(account) },
+                            label = { Text(account.name) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = when (account.name.lowercase()) {
+                                        "cash" -> Icons.Filled.Money
+                                        "bank account" -> Icons.Filled.AccountBalance
+                                        "upi" -> Icons.Filled.PhoneAndroid
+                                        "credit card" -> Icons.Filled.CreditCard
+                                        else -> Icons.Filled.Wallet
+                                    },
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
                     
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.selectAccount(account) },
-                        label = { Text(account.name) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = when (account.name.lowercase()) {
-                                    "cash" -> Icons.Filled.Money
-                                    "bank account" -> Icons.Filled.AccountBalance
-                                    "upi" -> Icons.Filled.PhoneAndroid
-                                    "credit card" -> Icons.Filled.CreditCard
-                                    else -> Icons.Filled.Wallet
-                                },
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                    // More button if there are more accounts
+                    if (uiState.accounts.size > 5) {
+                        item {
+                            FilterChip(
+                                selected = false,
+                                onClick = { showAccountSheet = true },
+                                label = { Text("+${uiState.accounts.size - 5} more") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreHoriz,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             )
                         }
-                    )
+                    }
                 }
             }
             
@@ -422,6 +459,213 @@ fun AddTransactionScreen(
                 }
             }
             
+            // Goal Contribution Section (only for income)
+            if (uiState.transactionType == TransactionType.INCOME && uiState.savingsGoals.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.contributeToGoal) 
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.md)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Savings,
+                                    contentDescription = null,
+                                    tint = if (uiState.contributeToGoal) 
+                                        MaterialTheme.colorScheme.tertiary 
+                                    else 
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Column {
+                                    Text(
+                                        text = "Add to Savings Goal",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Contribute this income to a goal",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = uiState.contributeToGoal,
+                                onCheckedChange = { viewModel.toggleGoalContribution(it) }
+                            )
+                        }
+                        
+                        // Show goal selection when contribution is enabled
+                        if (uiState.contributeToGoal) {
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            
+                            Text(
+                                text = "Select Goal",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                items(
+                                    items = uiState.savingsGoals,
+                                    key = { it.id }
+                                ) { goal ->
+                                    val isSelected = uiState.selectedGoal?.id == goal.id
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { viewModel.selectGoal(goal) },
+                                        label = { 
+                                            Column {
+                                                Text(goal.name)
+                                                Text(
+                                                    text = "₹${String.format("%.0f", goal.remaining)} left",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                                        } else {
+                                            { Text(goal.icon.take(2)) }
+                                        }
+                                    )
+                                }
+                            }
+                            
+                            // Show contribution summary
+                            val selectedGoal = uiState.selectedGoal
+                            if (selectedGoal != null && uiState.amount.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+                                val amount = uiState.amount.toDoubleOrNull() ?: 0.0
+                                val newProgress = ((    selectedGoal.savedAmount + amount) / selectedGoal.targetAmount * 100).coerceAtMost(100.0)
+                                Text(
+                                    text = "Goal will be ${String.format("%.0f", newProgress)}% complete",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Debt Payment Section (only for Expense with active debts or Income with active credits)
+            val relevantDebts = if (uiState.transactionType == TransactionType.EXPENSE) 
+                uiState.activeDebts 
+            else 
+                uiState.activeCredits
+            
+            if (relevantDebts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.isDebtPayment) 
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.md)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = if (uiState.transactionType == TransactionType.EXPENSE) 
+                                        "💳 Pay Debt" 
+                                    else 
+                                        "💰 Receive Credit",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${relevantDebts.size} active ${if (uiState.transactionType == TransactionType.EXPENSE) "debt" else "credit"}${if (relevantDebts.size > 1) "s" else ""}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = uiState.isDebtPayment,
+                                onCheckedChange = { viewModel.toggleDebtPayment(it) }
+                            )
+                        }
+                        
+                        // Show debt selector when enabled
+                        if (uiState.isDebtPayment) {
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                            ) {
+                                items(relevantDebts.size) { index ->
+                                    val debt = relevantDebts[index]
+                                    FilterChip(
+                                        selected = uiState.selectedDebt?.id == debt.id,
+                                        onClick = { viewModel.selectDebt(debt) },
+                                        label = { 
+                                            Column {
+                                                Text(debt.personName)
+                                                Text(
+                                                    text = "₹${String.format("%.0f", debt.remainingAmount)} left",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = if (uiState.selectedDebt?.id == debt.id) {
+                                            { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                                        } else null
+                                    )
+                                }
+                            }
+                            
+                            // Show payment summary
+                            val selectedDebt = uiState.selectedDebt
+                            if (selectedDebt != null && uiState.amount.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+                                val amount = uiState.amount.toDoubleOrNull() ?: 0.0
+                                val newRemaining = (selectedDebt.remainingAmount - amount).coerceAtLeast(0.0)
+                                val willSettle = newRemaining == 0.0
+                                Text(
+                                    text = if (willSettle) 
+                                        "✅ This will fully settle the ${if (uiState.transactionType == TransactionType.EXPENSE) "debt" else "credit"}!" 
+                                    else 
+                                        "Remaining after payment: ₹${String.format("%.0f", newRemaining)}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (willSettle) Green else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (willSettle) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
             Spacer(modifier = Modifier.height(Spacing.lg))
             
             // Save Button
@@ -494,6 +738,26 @@ fun AddTransactionScreen(
             accounts = uiState.accounts,
             onDismiss = { viewModel.hideSettleSheet() },
             onConfirm = { amount, accountId -> viewModel.settleBalance(amount, accountId) }
+        )
+    }
+    
+    // Category Picker Sheet
+    if (showCategorySheet) {
+        CategoryPickerSheet(
+            categories = uiState.categories,
+            selectedCategory = uiState.selectedCategory,
+            onCategorySelected = viewModel::selectCategory,
+            onDismiss = { showCategorySheet = false }
+        )
+    }
+    
+    // Account Picker Sheet
+    if (showAccountSheet) {
+        AccountPickerSheet(
+            accounts = uiState.accounts,
+            selectedAccount = uiState.selectedAccount,
+            onAccountSelected = viewModel::selectAccount,
+            onDismiss = { showAccountSheet = false }
         )
     }
 }
@@ -659,13 +923,27 @@ private fun AmountInput(
 private fun CategorySelector(
     categories: List<Category>,
     selectedCategory: Category?,
-    onCategorySelected: (Category) -> Unit
+    onCategorySelected: (Category) -> Unit,
+    onShowMore: () -> Unit = {}
 ) {
+    // Show max 5 categories, put selected at front if not in first 5
+    val displayCategories = if (categories.size <= 5) {
+        categories
+    } else {
+        val first5 = categories.take(5)
+        if (selectedCategory != null && selectedCategory !in first5) {
+            listOf(selectedCategory) + first5.take(4)
+        } else {
+            first5
+        }
+    }
+    val hasMore = categories.size > 5
+    
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         items(
-            items = categories,
+            items = displayCategories,
             key = { it.id }
         ) { category ->
             val isSelected = category.id == selectedCategory?.id
@@ -708,6 +986,41 @@ private fun CategorySelector(
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (isSelected) categoryColor else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+        
+        // Show "More" button if there are more categories
+        if (hasMore) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .clip(CardShapeSmall)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { onShowMore() }
+                        .padding(Spacing.md),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreHoriz,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        text = "+${categories.size - 5}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
@@ -907,4 +1220,194 @@ private fun SettleSheet(
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryPickerSheet(
+    categories: List<Category>,
+    selectedCategory: Category?,
+    onCategorySelected: (Category) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Text(
+                text = "Select Category",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                categories.forEach { category ->
+                    val isSelected = category.id == selectedCategory?.id
+                    val categoryColor = Color(category.color)
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onCategorySelected(category)
+                                onDismiss()
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) 
+                                categoryColor.copy(alpha = 0.15f)
+                            else 
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(categoryColor.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Category,
+                                    contentDescription = null,
+                                    tint = categoryColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Text(
+                                text = category.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = categoryColor
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountPickerSheet(
+    accounts: List<Account>,
+    selectedAccount: Account?,
+    onAccountSelected: (Account) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Text(
+                text = "Select Account",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                accounts.forEach { account ->
+                    val isSelected = account.id == selectedAccount?.id
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onAccountSelected(account)
+                                onDismiss()
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) 
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            else 
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = when (account.name.lowercase()) {
+                                    "cash" -> Icons.Filled.Money
+                                    "bank account" -> Icons.Filled.AccountBalance
+                                    "upi" -> Icons.Filled.PhoneAndroid
+                                    "credit card" -> Icons.Filled.CreditCard
+                                    else -> Icons.Filled.Wallet
+                                },
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = account.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                )
+                                Text(
+                                    text = "₹${String.format("%.0f", account.balance)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 

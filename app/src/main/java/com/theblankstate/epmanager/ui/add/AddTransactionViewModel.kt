@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.*
 import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
+import com.theblankstate.epmanager.data.repository.DebtRepository
 import com.theblankstate.epmanager.data.repository.FriendsRepository
+import com.theblankstate.epmanager.data.repository.SavingsGoalRepository
 import com.theblankstate.epmanager.data.repository.SplitRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,7 +55,16 @@ data class AddTransactionUiState(
     val isSplitEnabled: Boolean = false,
     val friends: List<Friend> = emptyList(),
     val selectedFriends: List<Friend> = emptyList(),
-    val manualSplitMembers: List<String> = emptyList() // Names of non-friend members
+    val manualSplitMembers: List<String> = emptyList(), // Names of non-friend members
+    // Goal Contribution state (for income)
+    val savingsGoals: List<SavingsGoal> = emptyList(),
+    val selectedGoal: SavingsGoal? = null,
+    val contributeToGoal: Boolean = false,
+    // Debt Payment state
+    val activeDebts: List<Debt> = emptyList(),
+    val activeCredits: List<Debt> = emptyList(),
+    val selectedDebt: Debt? = null,
+    val isDebtPayment: Boolean = false
 )
 
 @HiltViewModel
@@ -62,13 +73,19 @@ class AddTransactionViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val accountRepository: AccountRepository,
     private val splitRepository: SplitRepository,
-    private val friendsRepository: FriendsRepository
+    private val friendsRepository: FriendsRepository,
+    private val savingsGoalRepository: SavingsGoalRepository,
+    private val debtRepository: DebtRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AddTransactionUiState())
     val uiState: StateFlow<AddTransactionUiState> = _uiState.asStateFlow()
     
     init {
+        // Ensure all required categories exist (including Goals)
+        viewModelScope.launch {
+            categoryRepository.ensureSplitCategoriesExist()
+        }
         loadData()
         loadOwedBalances()
     }
@@ -107,6 +124,30 @@ class AddTransactionViewModel @Inject constructor(
                 .catch { /* Ignore - user may not be logged in */ }
                 .collect { friends ->
                     _uiState.update { it.copy(friends = friends) }
+                }
+        }
+        
+        // Load active savings goals for goal contribution
+        viewModelScope.launch {
+            savingsGoalRepository.getActiveGoals()
+                .collect { goals ->
+                    _uiState.update { it.copy(savingsGoals = goals) }
+                }
+        }
+        
+        // Load active debts for debt payment
+        viewModelScope.launch {
+            debtRepository.getActiveDebtsByType(DebtType.DEBT)
+                .collect { debts ->
+                    _uiState.update { it.copy(activeDebts = debts) }
+                }
+        }
+        
+        // Load active credits for credit receipt
+        viewModelScope.launch {
+            debtRepository.getActiveDebtsByType(DebtType.CREDIT)
+                .collect { credits ->
+                    _uiState.update { it.copy(activeCredits = credits) }
                 }
         }
     }
@@ -416,6 +457,21 @@ class AddTransactionViewModel @Inject constructor(
                     createQuickSplit(state, amount)
                 }
                 
+                // Handle goal contribution if enabled (only for income)
+                if (state.contributeToGoal && state.selectedGoal != null && state.transactionType == TransactionType.INCOME) {
+                    savingsGoalRepository.addContribution(state.selectedGoal.id, amount)
+                }
+                
+                // Handle debt payment if enabled
+                if (state.isDebtPayment && state.selectedDebt != null) {
+                    debtRepository.addPayment(
+                        debtId = state.selectedDebt.id,
+                        amount = amount,
+                        transactionId = transaction.id,
+                        note = state.note
+                    )
+                }
+                
                 _uiState.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {
                 _uiState.update { 
@@ -494,6 +550,81 @@ class AddTransactionViewModel @Inject constructor(
     
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+    
+    // Goal contribution functions
+    fun toggleGoalContribution(enabled: Boolean) {
+        _uiState.update { state ->
+            val goalToSelect = if (enabled && state.selectedGoal == null) 
+                state.savingsGoals.firstOrNull() 
+            else 
+                state.selectedGoal
+            
+            // Find the goals category
+            val goalsCategory = state.categories.find { it.id == "goals" }
+            
+            state.copy(
+                contributeToGoal = enabled,
+                selectedGoal = goalToSelect,
+                // Auto-select the Goals category when enabling
+                selectedCategory = if (enabled && goalsCategory != null) goalsCategory else state.selectedCategory,
+                // Auto-set note to "Toward [Goal Name]" when enabling
+                note = if (enabled && goalToSelect != null) "Toward ${goalToSelect.name}" else state.note
+            )
+        }
+    }
+    
+    fun selectGoal(goal: SavingsGoal) {
+        _uiState.update { state ->
+            state.copy(
+                selectedGoal = goal,
+                // Update note when goal is changed
+                note = if (state.contributeToGoal) "Toward ${goal.name}" else state.note
+            )
+        }
+    }
+    
+    // Debt payment functions
+    fun toggleDebtPayment(enabled: Boolean) {
+        _uiState.update { state ->
+            val debtsOrCredits = if (state.transactionType == TransactionType.EXPENSE) 
+                state.activeDebts 
+            else 
+                state.activeCredits
+            
+            val debtToSelect = if (enabled && state.selectedDebt == null) 
+                debtsOrCredits.firstOrNull() 
+            else 
+                state.selectedDebt
+            
+            // Find the appropriate category
+            val categoryId = if (state.transactionType == TransactionType.EXPENSE) "debt_payment" else "credit_received"
+            val debtCategory = state.categories.find { it.id == categoryId }
+            
+            state.copy(
+                isDebtPayment = enabled,
+                selectedDebt = if (enabled) debtToSelect else null,
+                // Auto-select the debt/credit category
+                selectedCategory = if (enabled && debtCategory != null) debtCategory else state.selectedCategory,
+                // Auto-set note
+                note = if (enabled && debtToSelect != null) {
+                    if (state.transactionType == TransactionType.EXPENSE) 
+                        "Payment to ${debtToSelect.personName}" 
+                    else 
+                        "Received from ${debtToSelect.personName}"
+                } else state.note
+            )
+        }
+    }
+    
+    fun selectDebt(debt: Debt) {
+        _uiState.update { state ->
+            val notePrefix = if (state.transactionType == TransactionType.EXPENSE) "Payment to" else "Received from"
+            state.copy(
+                selectedDebt = debt,
+                note = if (state.isDebtPayment) "$notePrefix ${debt.personName}" else state.note
+            )
+        }
     }
 }
 
