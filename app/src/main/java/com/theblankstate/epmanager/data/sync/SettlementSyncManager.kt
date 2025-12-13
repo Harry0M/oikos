@@ -1,8 +1,16 @@
 package com.theblankstate.epmanager.data.sync
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import com.theblankstate.epmanager.MainActivity
+import com.theblankstate.epmanager.R
 import com.theblankstate.epmanager.data.model.SettlementNotification
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.TransactionType
@@ -33,9 +41,31 @@ class SettlementSyncManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isListening = false
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     
     companion object {
         private const val TAG = "SettlementSync"
+        private const val CHANNEL_ID = "settlement_notifications"
+        private const val CHANNEL_NAME = "Settlement Notifications"
+        private var notificationId = 1000
+    }
+    
+    init {
+        createNotificationChannel()
+    }
+    
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                CHANNEL_NAME,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications when friends pay you"
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
     }
     
     /**
@@ -73,10 +103,6 @@ class SettlementSyncManager @Inject constructor(
             val defaultAccount = accountRepository.getDefaultAccountSync()
             
             if (defaultAccount != null) {
-                // The notification is sent TO me, meaning someone settled with me
-                // If I was owed money, this is INCOME
-                // If I owed them, this is already handled on my side when I initiated settle
-                
                 // When friend settles, I receive money - create INCOME transaction
                 val transaction = Transaction(
                     amount = notification.amount,
@@ -92,14 +118,8 @@ class SettlementSyncManager @Inject constructor(
                 
                 Log.d(TAG, "Created income transaction for ${notification.amount}")
                 
-                // Show toast notification
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        context,
-                        "💰 ${notification.fromDisplayName} paid you ₹${String.format("%.2f", notification.amount)}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                // Show notification
+                showSettlementNotification(notification)
             } else {
                 Log.w(TAG, "No default account found, skipping transaction recording")
             }
@@ -112,6 +132,43 @@ class SettlementSyncManager @Inject constructor(
         }
     }
     
+    private suspend fun showSettlementNotification(notification: SettlementNotification) {
+        withContext(Dispatchers.Main) {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            val amountFormatted = String.format("%.2f", notification.amount)
+            val senderName = notification.fromDisplayName ?: "Someone"
+            
+            val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("💰 Payment Received")
+                .setContentText("$senderName paid you ₹$amountFormatted")
+                .setStyle(NotificationCompat.BigTextStyle()
+                    .bigText("$senderName paid you ₹$amountFormatted from ${notification.groupName}. The amount has been added to your account."))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .setVibrate(longArrayOf(0, 250, 250, 250))
+            
+            notificationManager.notify(notificationId++, notificationBuilder.build())
+            
+            // Also show toast for immediate feedback
+            Toast.makeText(
+                context,
+                "💰 $senderName paid you ₹$amountFormatted",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    
     /**
      * Stop listening for settlements
      * Call this when user logs out
@@ -121,3 +178,4 @@ class SettlementSyncManager @Inject constructor(
         Log.d(TAG, "Stopped settlement notification listener")
     }
 }
+

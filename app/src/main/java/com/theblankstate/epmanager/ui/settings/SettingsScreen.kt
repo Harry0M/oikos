@@ -166,13 +166,6 @@ fun SettingsScreen(
             onClick = onNavigateToGoals
         )
         
-        SettingsItem(
-            icon = Icons.Filled.Groups,
-            title = "Split Expenses",
-            subtitle = "Split bills with friends and groups",
-            onClick = onNavigateToSplit
-        )
-        
         Spacer(modifier = Modifier.height(Spacing.lg))
         
         // AI Features Section

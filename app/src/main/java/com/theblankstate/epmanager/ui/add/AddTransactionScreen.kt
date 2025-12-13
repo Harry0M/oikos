@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.TransactionType
 import com.theblankstate.epmanager.ui.theme.*
@@ -104,6 +105,14 @@ fun AddTransactionScreen(
         uiState.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
+        }
+    }
+    
+    // Show settle success snackbar
+    LaunchedEffect(uiState.settleSuccess) {
+        uiState.settleSuccess?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSettleSuccess()
         }
     }
     
@@ -263,7 +272,157 @@ fun AddTransactionScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.weight(1f))
+            // Quick Split Section (only for expenses)
+            if (uiState.transactionType == TransactionType.EXPENSE) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.isSplitEnabled) 
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.md)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Groups,
+                                    contentDescription = null,
+                                    tint = if (uiState.isSplitEnabled) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Column {
+                                    Text(
+                                        text = "Split this expense",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Quickly split with friends",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = uiState.isSplitEnabled,
+                                onCheckedChange = { viewModel.toggleSplit(it) }
+                            )
+                        }
+                        
+                        // Show friend selection when split is enabled
+                        if (uiState.isSplitEnabled) {
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            
+                            // Friends selection
+                            if (uiState.friends.isNotEmpty()) {
+                                Text(
+                                    text = "Select Friends",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                                ) {
+                                    items(
+                                        items = uiState.friends,
+                                        key = { it.odiserId }
+                                    ) { friend ->
+                                        val isSelected = uiState.selectedFriends.any { it.odiserId == friend.odiserId }
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { viewModel.toggleFriendSelection(friend) },
+                                            label = { Text(friend.displayName ?: friend.email) },
+                                            leadingIcon = if (isSelected) {
+                                                { Icon(Icons.Filled.Check, null, Modifier.size(16.dp)) }
+                                            } else null
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+                            }
+                            
+                            // Manual member input
+                            var newMemberName by remember { mutableStateOf("") }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newMemberName,
+                                    onValueChange = { newMemberName = it },
+                                    label = { Text("Add person") },
+                                    placeholder = { Text("Name") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    shape = InputFieldShape
+                                )
+                                FilledTonalButton(
+                                    onClick = {
+                                        viewModel.addManualMember(newMemberName)
+                                        newMemberName = ""
+                                    },
+                                    enabled = newMemberName.isNotBlank()
+                                ) {
+                                    Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                                }
+                            }
+                            
+                            // Show added manual members
+                            if (uiState.manualSplitMembers.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                                ) {
+                                    items(uiState.manualSplitMembers) { name ->
+                                        InputChip(
+                                            selected = true,
+                                            onClick = { viewModel.removeManualMember(name) },
+                                            label = { Text(name) },
+                                            trailingIcon = { 
+                                                Icon(Icons.Filled.Close, "Remove", Modifier.size(16.dp)) 
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // Summary
+                            val totalPeople = 1 + uiState.selectedFriends.size + uiState.manualSplitMembers.size
+                            if (totalPeople > 1 && uiState.amount.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+                                val amount = uiState.amount.toDoubleOrNull() ?: 0.0
+                                val perPerson = amount / totalPeople
+                                Text(
+                                    text = "₹${String.format("%.0f", perPerson)} each ($totalPeople people)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
             
             // Save Button
             Button(
@@ -290,8 +449,52 @@ fun AddTransactionScreen(
                 }
             }
             
+            // Split Balances Section at bottom (who owes whom)
+            // Filter based on transaction type:
+            // - Expense: show "you owe" (negative amounts) - balances where you need to pay
+            // - Income: show "owes you" (positive amounts) - balances where you receive payment
+            val filteredBalances = uiState.owedBalances.filter { balance ->
+                if (uiState.transactionType == TransactionType.EXPENSE) {
+                    balance.amount < 0 // You owe them
+                } else {
+                    balance.amount > 0 // They owe you
+                }
+            }
+            
+            if (filteredBalances.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.xl))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = if (uiState.transactionType == TransactionType.EXPENSE) 
+                        "Settle Debts" else "Collect Payments",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                filteredBalances.forEach { owedBalance ->
+                    OwedBalanceListItem(
+                        owedBalance = owedBalance,
+                        onSettle = { viewModel.showSettleSheet(owedBalance) }
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+            }
+            
             Spacer(modifier = Modifier.height(Spacing.md))
         }
+    }
+    
+    // Settle Bottom Sheet
+    if (uiState.showSettleSheet && uiState.selectedSettleBalance != null) {
+        SettleSheet(
+            owedBalance = uiState.selectedSettleBalance!!,
+            accounts = uiState.accounts,
+            onDismiss = { viewModel.hideSettleSheet() },
+            onConfirm = { amount, accountId -> viewModel.settleBalance(amount, accountId) }
+        )
     }
 }
 
@@ -509,3 +712,199 @@ private fun CategorySelector(
         }
     }
 }
+@Composable
+private fun OwedBalanceListItem(
+    owedBalance: OwedBalance,
+    onSettle: () -> Unit
+) {
+    val isOwedToYou = owedBalance.amount > 0
+    val displayAmount = kotlin.math.abs(owedBalance.amount)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isOwedToYou) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            else 
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Group emoji
+            Text(
+                text = owedBalance.groupEmoji,
+                style = MaterialTheme.typography.titleLarge
+            )
+            
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = owedBalance.member.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (owedBalance.isLinkedFriend) {
+                        Text(" 🔗", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Text(
+                    text = if (isOwedToYou) "owes you" else "you owe",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = owedBalance.groupName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Text(
+                text = "₹${String.format("%.0f", displayAmount)}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (isOwedToYou) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.error
+            )
+            
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            
+            FilledTonalButton(
+                onClick = onSettle,
+                contentPadding = PaddingValues(horizontal = Spacing.md)
+            ) {
+                Text("Settle")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettleSheet(
+    owedBalance: OwedBalance,
+    accounts: List<Account>,
+    onDismiss: () -> Unit,
+    onConfirm: (amount: Double, accountId: String?) -> Unit
+) {
+    var amount by remember { mutableStateOf(kotlin.math.abs(owedBalance.amount).toString()) }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
+    var accountExpanded by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    
+    val isOwed = owedBalance.amount > 0 // They owe me
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.lg)
+        ) {
+            Text(
+                text = if (isOwed) 
+                    "Record payment from ${owedBalance.member.name}"
+                else 
+                    "Record payment to ${owedBalance.member.name}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            Text(
+                text = "${owedBalance.groupEmoji} ${owedBalance.groupName}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Amount") },
+                prefix = { Text("₹") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Account selection dropdown
+            ExposedDropdownMenuBox(
+                expanded = accountExpanded,
+                onExpandedChange = { accountExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedAccount?.name ?: "Select account",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Account") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                
+                ExposedDropdownMenu(
+                    expanded = accountExpanded,
+                    onDismissRequest = { accountExpanded = false }
+                ) {
+                    accounts.forEach { account ->
+                        DropdownMenuItem(
+                            text = { Text(account.name) },
+                            onClick = { 
+                                selectedAccount = account
+                                accountExpanded = false 
+                            }
+                        )
+                    }
+                }
+            }
+            
+            if (isOwed) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = "This will record income in your account",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = Spacing.xs)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = "This will record an expense from your account",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = Spacing.xs)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            Button(
+                onClick = { amount.toDoubleOrNull()?.let { onConfirm(it, selectedAccount?.id) } },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = amount.toDoubleOrNull() != null,
+                shape = ButtonShape
+            ) {
+                Text("Record Settlement")
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+        }
+    }
+}
+
+

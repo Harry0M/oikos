@@ -6,11 +6,25 @@ import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.*
 import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
+import com.theblankstate.epmanager.data.repository.FriendsRepository
+import com.theblankstate.epmanager.data.repository.SplitRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/**
+ * Data class representing someone who owes you or you owe them
+ */
+data class OwedBalance(
+    val groupId: String,
+    val groupName: String,
+    val groupEmoji: String,
+    val member: GroupMember,
+    val amount: Double, // Positive = they owe you, Negative = you owe them
+    val isLinkedFriend: Boolean = false
+)
 
 data class AddTransactionUiState(
     val amount: String = "",
@@ -28,14 +42,27 @@ data class AddTransactionUiState(
     // Location state
     val currentLocation: Location? = null,
     val locationName: String? = null,
-    val isLocationEnabled: Boolean = true // User can toggle off
+    val isLocationEnabled: Boolean = true, // User can toggle off
+    // Split balance state
+    val owedBalances: List<OwedBalance> = emptyList(),
+    val showSettleSheet: Boolean = false,
+    val selectedSettleBalance: OwedBalance? = null,
+    val isSettling: Boolean = false,
+    val settleSuccess: String? = null,
+    // Quick Split state
+    val isSplitEnabled: Boolean = false,
+    val friends: List<Friend> = emptyList(),
+    val selectedFriends: List<Friend> = emptyList(),
+    val manualSplitMembers: List<String> = emptyList() // Names of non-friend members
 )
 
 @HiltViewModel
 class AddTransactionViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val splitRepository: SplitRepository,
+    private val friendsRepository: FriendsRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AddTransactionUiState())
@@ -43,6 +70,7 @@ class AddTransactionViewModel @Inject constructor(
     
     init {
         loadData()
+        loadOwedBalances()
     }
     
     private fun loadData() {
@@ -72,6 +100,160 @@ class AddTransactionViewModel @Inject constructor(
                     }
                 }
         }
+        
+        // Load friends for quick split
+        viewModelScope.launch {
+            friendsRepository.getFriends()
+                .catch { /* Ignore - user may not be logged in */ }
+                .collect { friends ->
+                    _uiState.update { it.copy(friends = friends) }
+                }
+        }
+    }
+    
+    private fun loadOwedBalances() {
+        viewModelScope.launch {
+            try {
+                val groups = splitRepository.getGroupsWithSummary()
+                val allOwedBalances = mutableListOf<OwedBalance>()
+                
+                groups.forEach { groupWithMembers ->
+                    val group = groupWithMembers.group
+                    val balances = splitRepository.calculateBalances(group.id)
+                    
+                    balances.forEach { memberBalance ->
+                        // Skip if balance is essentially zero
+                        if (kotlin.math.abs(memberBalance.balance) > 0.01) {
+                            // Skip the current user
+                            if (!memberBalance.member.isCurrentUser) {
+                                allOwedBalances.add(
+                                    OwedBalance(
+                                        groupId = group.id,
+                                        groupName = group.name,
+                                        groupEmoji = group.emoji,
+                                        member = memberBalance.member,
+                                        amount = memberBalance.balance,
+                                        isLinkedFriend = memberBalance.member.linkedUserId != null
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // Sort: who owes you first (positive), then who you owe (negative)
+                val sortedBalances = allOwedBalances.sortedByDescending { it.amount }
+                _uiState.update { it.copy(owedBalances = sortedBalances) }
+            } catch (e: Exception) {
+                // Silently fail
+            }
+        }
+    }
+    
+    // Settle Sheet management
+    fun showSettleSheet(owedBalance: OwedBalance) {
+        _uiState.update { it.copy(showSettleSheet = true, selectedSettleBalance = owedBalance) }
+    }
+    
+    fun hideSettleSheet() {
+        _uiState.update { it.copy(showSettleSheet = false, selectedSettleBalance = null) }
+    }
+    
+    /**
+     * Settle with a member - called from the bottom sheet
+     */
+    fun settleBalance(amount: Double, accountId: String?) {
+        val owedBalance = _uiState.value.selectedSettleBalance ?: return
+        val finalAccountId = accountId ?: _uiState.value.selectedAccount?.id ?: return
+        val isOwedToYou = owedBalance.amount > 0
+        
+        _uiState.update { it.copy(isSettling = true) }
+        
+        viewModelScope.launch {
+            try {
+                // Get current user member
+                val members = splitRepository.getMembersByGroupSync(owedBalance.groupId)
+                val currentUser = members.find { it.isCurrentUser } ?: return@launch
+                
+                // Create settlement record
+                val settlement = if (isOwedToYou) {
+                    // They owe me - they are paying me
+                    Settlement(
+                        groupId = owedBalance.groupId,
+                        fromMemberId = owedBalance.member.id,
+                        toMemberId = currentUser.id,
+                        amount = amount
+                    )
+                } else {
+                    // I owe them - I am paying them
+                    Settlement(
+                        groupId = owedBalance.groupId,
+                        fromMemberId = currentUser.id,
+                        toMemberId = owedBalance.member.id,
+                        amount = amount
+                    )
+                }
+                splitRepository.insertSettlement(settlement)
+                
+                // Create transaction
+                if (isOwedToYou) {
+                    // I'm receiving money - INCOME
+                    val transaction = Transaction(
+                        amount = amount,
+                        type = TransactionType.INCOME,
+                        categoryId = "split_payoff",
+                        accountId = finalAccountId,
+                        date = System.currentTimeMillis(),
+                        note = "Split Payoff from ${owedBalance.member.name} (${owedBalance.groupName})"
+                    )
+                    transactionRepository.insertTransaction(transaction)
+                    accountRepository.updateBalance(finalAccountId, amount)
+                } else {
+                    // I'm paying money - EXPENSE
+                    val transaction = Transaction(
+                        amount = amount,
+                        type = TransactionType.EXPENSE,
+                        categoryId = "split_expense",
+                        accountId = finalAccountId,
+                        date = System.currentTimeMillis(),
+                        note = "Split Payoff to ${owedBalance.member.name} (${owedBalance.groupName})"
+                    )
+                    transactionRepository.insertTransaction(transaction)
+                    accountRepository.updateBalance(finalAccountId, -amount)
+                }
+                
+                // Send notification to linked friend if applicable
+                owedBalance.member.linkedUserId?.let { linkedUserId ->
+                    friendsRepository.sendSettlementNotification(
+                        toUserId = linkedUserId,
+                        amount = amount,
+                        groupId = owedBalance.groupId,
+                        groupName = owedBalance.groupName
+                    )
+                }
+                
+                hideSettleSheet()
+                
+                _uiState.update { 
+                    it.copy(
+                        isSettling = false,
+                        settleSuccess = "Settled ₹${String.format("%.0f", amount)} with ${owedBalance.member.name}"
+                    ) 
+                }
+                
+                // Reload balances
+                loadOwedBalances()
+                
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(isSettling = false, error = "Failed to settle: ${e.message}") 
+                }
+            }
+        }
+    }
+    
+    fun clearSettleSuccess() {
+        _uiState.update { it.copy(settleSuccess = null) }
     }
     
     fun updateAmount(amount: String) {
@@ -139,6 +321,41 @@ class AddTransactionViewModel @Inject constructor(
         _uiState.update { it.copy(isLocationEnabled = enabled) }
     }
     
+    // ========== Quick Split Functions ==========
+    
+    fun toggleSplit(enabled: Boolean) {
+        _uiState.update { it.copy(isSplitEnabled = enabled) }
+    }
+    
+    fun toggleFriendSelection(friend: Friend) {
+        _uiState.update { state ->
+            val currentSelected = state.selectedFriends.toMutableList()
+            if (currentSelected.any { it.odiserId == friend.odiserId }) {
+                currentSelected.removeAll { it.odiserId == friend.odiserId }
+            } else {
+                currentSelected.add(friend)
+            }
+            state.copy(selectedFriends = currentSelected)
+        }
+    }
+    
+    fun addManualMember(name: String) {
+        if (name.isBlank()) return
+        _uiState.update { state ->
+            val members = state.manualSplitMembers.toMutableList()
+            if (!members.contains(name)) {
+                members.add(name)
+            }
+            state.copy(manualSplitMembers = members)
+        }
+    }
+    
+    fun removeManualMember(name: String) {
+        _uiState.update { state ->
+            state.copy(manualSplitMembers = state.manualSplitMembers.filter { it != name })
+        }
+    }
+    
     fun saveTransaction() {
         val state = _uiState.value
         
@@ -156,6 +373,12 @@ class AddTransactionViewModel @Inject constructor(
         
         if (state.selectedAccount == null) {
             _uiState.update { it.copy(error = "Please select an account") }
+            return
+        }
+        
+        // Validate split if enabled
+        if (state.isSplitEnabled && state.selectedFriends.isEmpty() && state.manualSplitMembers.isEmpty()) {
+            _uiState.update { it.copy(error = "Please add at least one person to split with") }
             return
         }
         
@@ -188,6 +411,11 @@ class AddTransactionViewModel @Inject constructor(
                 }
                 accountRepository.updateBalance(state.selectedAccount.id, balanceChange)
                 
+                // Handle quick split if enabled
+                if (state.isSplitEnabled && state.transactionType == TransactionType.EXPENSE) {
+                    createQuickSplit(state, amount)
+                }
+                
                 _uiState.update { it.copy(isSaving = false, isSaved = true) }
             } catch (e: Exception) {
                 _uiState.update { 
@@ -197,7 +425,75 @@ class AddTransactionViewModel @Inject constructor(
         }
     }
     
+    private suspend fun createQuickSplit(state: AddTransactionUiState, amount: Double) {
+        // Use note as group name, or generate a default name
+        val groupName = state.note.takeIf { it.isNotBlank() } 
+            ?: "Split ${java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault()).format(java.util.Date())}"
+        
+        // Create the quick split group
+        val group = SplitGroup(
+            name = groupName,
+            emoji = "💸",
+            description = "Quick split expense"
+        )
+        splitRepository.insertGroup(group)
+        
+        // Create "You" member
+        val youMember = GroupMember(
+            groupId = group.id,
+            name = "You",
+            isCurrentUser = true
+        )
+        splitRepository.insertMember(youMember)
+        
+        // Create members for selected friends
+        val friendMembers = state.selectedFriends.map { friend ->
+            GroupMember(
+                groupId = group.id,
+                name = friend.displayName ?: friend.email,
+                email = friend.email,
+                linkedUserId = friend.odiserId
+            )
+        }
+        friendMembers.forEach { splitRepository.insertMember(it) }
+        
+        // Create members for manual entries
+        val manualMembers = state.manualSplitMembers.map { name ->
+            GroupMember(
+                groupId = group.id,
+                name = name
+            )
+        }
+        manualMembers.forEach { splitRepository.insertMember(it) }
+        
+        // All members including you
+        val allMembers = listOf(youMember) + friendMembers + manualMembers
+        val totalMembers = allMembers.size
+        val sharePerPerson = amount / totalMembers
+        
+        // Create the split expense (you paid)
+        val expense = SplitExpense(
+            groupId = group.id,
+            description = groupName,
+            totalAmount = amount,
+            paidById = youMember.id,
+            splitType = SplitType.EQUAL
+        )
+        splitRepository.insertExpense(expense)
+        
+        // Create shares for each member
+        val shares = allMembers.map { member ->
+            ExpenseShare(
+                expenseId = expense.id,
+                memberId = member.id,
+                shareAmount = sharePerPerson
+            )
+        }
+        splitRepository.insertShares(shares)
+    }
+    
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
 }
+

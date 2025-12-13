@@ -96,7 +96,6 @@ class HomeViewModel @Inject constructor(
         }
         
         // Get total balance from ACCOUNTS table (source of truth)
-        // This ensures dashboard and accounts screen show same balance
         viewModelScope.launch {
             accountRepository.getTotalBalance()
                 .collect { balance ->
@@ -110,3 +109,5 @@ class HomeViewModel @Inject constructor(
         loadDashboardData()
     }
 }
+
+

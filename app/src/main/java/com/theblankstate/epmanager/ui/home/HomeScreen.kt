@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.components.*
 import com.theblankstate.epmanager.ui.theme.Spacing
@@ -45,56 +47,10 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val lazyListState = rememberLazyListState()
-    var hasNavigated by remember { mutableStateOf(false) }
     
     // Force refresh data every time this screen becomes visible
     LaunchedEffect(Unit) {
         viewModel.refresh()
-        hasNavigated = false // Reset when screen is shown
-    }
-    
-    // Detect when user scrolls to the end of the transactions list
-    // This triggers navigation to full Transactions screen with vibration feedback
-    // Only trigger if: list has enough items, user has scrolled, and at the end
-    var hasStartedScrolling by remember { mutableStateOf(false) }
-    
-    // Track if user has actually scrolled
-    LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemScrollOffset }
-            .collect { offset ->
-                if (offset > 0) hasStartedScrolling = true
-            }
-    }
-    
-    LaunchedEffect(lazyListState, uiState.recentTransactions, hasStartedScrolling) {
-        snapshotFlow { 
-            val layoutInfo = lazyListState.layoutInfo
-            val totalItems = layoutInfo.totalItemsCount
-            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            
-            // Check if:
-            // 1. We have at least 3 transactions (enough to scroll)
-            // 2. User has actually scrolled the list
-            // 3. User has scrolled to the bottom
-            // 4. Cannot scroll further down
-            val hasEnoughTransactions = uiState.recentTransactions.size >= 3
-            val isAtEnd = totalItems > 0 && lastVisibleIndex >= totalItems - 2
-            val cannotScrollMore = !lazyListState.canScrollForward
-            
-            // Return all conditions
-            listOf(hasEnoughTransactions, hasStartedScrolling, isAtEnd, cannotScrollMore)
-        }
-            .distinctUntilChanged()
-            .filter { conditions -> 
-                val (hasEnoughTransactions, userScrolled, isAtEnd, cannotScrollMore) = conditions
-                // Only trigger when user has scrolled and reached the end
-                hasEnoughTransactions && userScrolled && isAtEnd && cannotScrollMore && !hasNavigated
-            }
-            .collect {
-                hasNavigated = true
-                triggerVibration(context)
-                onNavigateToTransactions()
-            }
     }
     
     Scaffold(
@@ -213,6 +169,29 @@ fun HomeScreen(
                             onClick = { onNavigateToTransactionDetail(transactionWithCategory.transaction.id) }
                         )
                     }
+                    
+                    // See More button at the end
+                    item {
+                        TextButton(
+                            onClick = onNavigateToTransactions,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Spacing.sm)
+                        ) {
+                            Text(
+                                text = "See More Transactions",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(start = Spacing.xs)
+                                    .size(16.dp)
+                            )
+                        }
+                    }
                 }
                 
                 // Bottom spacing for FAB
@@ -243,3 +222,5 @@ private fun triggerVibration(context: android.content.Context) {
         e.printStackTrace()
     }
 }
+
+
