@@ -206,9 +206,9 @@ fun SubscriptionsScreen(
         }
     }
     
-    // Add/Edit Dialog
+    // Add/Edit Sheet
     if (uiState.showAddDialog) {
-        AddEditSubscriptionDialog(
+        AddEditSubscriptionSheet(
             existingSubscription = uiState.editingSubscription,
             categories = uiState.categories,
             onDismiss = { viewModel.hideDialog() },
@@ -469,7 +469,7 @@ private fun SubscriptionItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEditSubscriptionDialog(
+private fun AddEditSubscriptionSheet(
     existingSubscription: RecurringExpense?,
     categories: List<Category>,
     onDismiss: () -> Unit,
@@ -482,6 +482,7 @@ private fun AddEditSubscriptionDialog(
     var autoAdd by remember { mutableStateOf(existingSubscription?.autoAdd ?: false) }
     var expandedCategory by remember { mutableStateOf(false) }
     var expandedFrequency by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     // Common subscription presets
     val presets = listOf(
@@ -489,140 +490,160 @@ private fun AddEditSubscriptionDialog(
         "Disney+", "Apple Music", "iCloud", "Google One"
     )
     
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Header
             Text(
                 text = if (existingSubscription != null) "Edit Subscription" else "Add Subscription",
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = Spacing.sm)
             )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+            
+            // Quick preset buttons (only for new subscriptions)
+            if (existingSubscription == null) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    items(presets) { preset ->
+                        SuggestionChip(
+                            onClick = { name = preset },
+                            label = { Text(preset, style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+            }
+            
+            // Name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Service Name") },
+                placeholder = { Text("Netflix, Spotify, etc.") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape
+            )
+            
+            // Amount
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { 
+                    amount = it.filter { c -> c.isDigit() || c == '.' }
+                },
+                label = { Text("Amount") },
+                prefix = { Text("₹") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape
+            )
+            
+            // Frequency Dropdown
+            ExposedDropdownMenuBox(
+                expanded = expandedFrequency,
+                onExpandedChange = { expandedFrequency = it }
             ) {
-                // Quick preset buttons (only for new subscriptions)
-                if (existingSubscription == null) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        items(presets) { preset ->
-                            SuggestionChip(
-                                onClick = { name = preset },
-                                label = { Text(preset, style = MaterialTheme.typography.labelSmall) }
-                            )
-                        }
-                    }
-                }
-                
-                // Name
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Service Name") },
-                    placeholder = { Text("Netflix, Spotify, etc.") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    value = selectedFrequency.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Billing Cycle") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFrequency) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    shape = InputFieldShape
                 )
                 
-                // Amount
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { 
-                        amount = it.filter { c -> c.isDigit() || c == '.' }
-                    },
-                    label = { Text("Amount") },
-                    prefix = { Text("₹") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                // Frequency Dropdown
-                ExposedDropdownMenuBox(
+                ExposedDropdownMenu(
                     expanded = expandedFrequency,
-                    onExpandedChange = { expandedFrequency = it }
+                    onDismissRequest = { expandedFrequency = false }
                 ) {
-                    OutlinedTextField(
-                        value = selectedFrequency.label,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Billing Cycle") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFrequency) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-                    
-                    ExposedDropdownMenu(
-                        expanded = expandedFrequency,
-                        onDismissRequest = { expandedFrequency = false }
-                    ) {
-                        listOf(
-                            RecurringFrequency.WEEKLY,
-                            RecurringFrequency.MONTHLY,
-                            RecurringFrequency.QUARTERLY,
-                            RecurringFrequency.YEARLY
-                        ).forEach { freq ->
-                            DropdownMenuItem(
-                                text = { Text(freq.label) },
-                                onClick = {
-                                    selectedFrequency = freq
-                                    expandedFrequency = false
-                                }
-                            )
-                        }
+                    listOf(
+                        RecurringFrequency.WEEKLY,
+                        RecurringFrequency.MONTHLY,
+                        RecurringFrequency.QUARTERLY,
+                        RecurringFrequency.YEARLY
+                    ).forEach { freq ->
+                        DropdownMenuItem(
+                            text = { Text(freq.label) },
+                            onClick = {
+                                selectedFrequency = freq
+                                expandedFrequency = false
+                            }
+                        )
                     }
                 }
+            }
+            
+            // Category Dropdown
+            ExposedDropdownMenuBox(
+                expanded = expandedCategory,
+                onExpandedChange = { expandedCategory = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedCategory?.name ?: "None",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Category") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    shape = InputFieldShape
+                )
                 
-                // Category Dropdown
-                ExposedDropdownMenuBox(
+                ExposedDropdownMenu(
                     expanded = expandedCategory,
-                    onExpandedChange = { expandedCategory = it }
+                    onDismissRequest = { expandedCategory = false }
                 ) {
-                    OutlinedTextField(
-                        value = selectedCategory?.name ?: "None",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
+                    DropdownMenuItem(
+                        text = { Text("None") },
+                        onClick = {
+                            selectedCategory = null
+                            expandedCategory = false
+                        }
                     )
-                    
-                    ExposedDropdownMenu(
-                        expanded = expandedCategory,
-                        onDismissRequest = { expandedCategory = false }
-                    ) {
+                    categories.forEach { category ->
                         DropdownMenuItem(
-                            text = { Text("None") },
+                            text = { Text(category.name) },
                             onClick = {
-                                selectedCategory = null
+                                selectedCategory = category
                                 expandedCategory = false
                             }
                         )
-                        categories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category.name) },
-                                onClick = {
-                                    selectedCategory = category
-                                    expandedCategory = false
-                                }
-                            )
-                        }
                     }
                 }
-                
-                // Auto-pay toggle
+            }
+            
+            // Auto-pay toggle
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Auto-add transaction",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
                         Text(
                             text = "Add expense on renewal date",
@@ -636,26 +657,38 @@ private fun AddEditSubscriptionDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amountValue = amount.toDoubleOrNull()
-                    if (name.isNotBlank() && amountValue != null && amountValue > 0) {
-                        onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, autoAdd)
-                    }
-                },
-                enabled = name.isNotBlank() && amount.toDoubleOrNull()?.let { it > 0 } == true
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                Text(if (existingSubscription != null) "Save" else "Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = ButtonShapePill
+                ) {
+                    Text("Cancel")
+                }
+                
+                Button(
+                    onClick = {
+                        val amountValue = amount.toDoubleOrNull()
+                        if (name.isNotBlank() && amountValue != null && amountValue > 0) {
+                            onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, autoAdd)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = name.isNotBlank() && amount.toDoubleOrNull()?.let { it > 0 } == true,
+                    shape = ButtonShapePill
+                ) {
+                    Text(if (existingSubscription != null) "Save" else "Add")
+                }
             }
         }
-    )
+    }
 }
 
 private fun formatDate(timestamp: Long): String {
