@@ -39,8 +39,12 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import com.theblankstate.epmanager.data.model.Account
+import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.data.model.Category
+import com.theblankstate.epmanager.data.model.CategoryType
 import com.theblankstate.epmanager.data.model.TransactionType
+import com.theblankstate.epmanager.ui.budget.SelectCategoryBottomSheet
+import com.theblankstate.epmanager.ui.budget.AddCategoryBottomSheet
 import com.theblankstate.epmanager.ui.theme.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -59,6 +63,7 @@ fun AddTransactionScreen(
     
     // State for picker sheets
     var showCategorySheet by remember { mutableStateOf(false) }
+    var showAddCategorySheet by remember { mutableStateOf(false) }
     var showAccountSheet by remember { mutableStateOf(false) }
     
     // Location permission launcher
@@ -208,65 +213,53 @@ fun AddTransactionScreen(
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            run {
-                // Show max 5 accounts, plus More button if needed
-                val displayAccounts: List<Account> = if (uiState.accounts.size <= 5) {
-                    uiState.accounts
-                } else {
-                    val first5 = uiState.accounts.take(5)
-                    if (uiState.selectedAccount != null && uiState.selectedAccount !in first5) {
-                        (listOf(uiState.selectedAccount) + first5.take(4)).filterNotNull()
-                    } else {
-                        first5
-                    }
-                }
-                
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                ) {
-                    items(
-                        items = displayAccounts,
-                        key = { it.id }
-                    ) { account ->
-                        val isSelected = account.id == uiState.selectedAccount?.id
-                        
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { viewModel.selectAccount(account) },
-                            label = { Text(account.name) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = when (account.name.lowercase()) {
-                                        "cash" -> Icons.Filled.Money
-                                        "bank account" -> Icons.Filled.AccountBalance
-                                        "upi" -> Icons.Filled.PhoneAndroid
-                                        "credit card" -> Icons.Filled.CreditCard
-                                        else -> Icons.Filled.Wallet
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
-                    }
+            // Show all accounts + Add New chip
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                items(
+                    items = uiState.accounts,
+                    key = { it.id }
+                ) { account ->
+                    val isSelected = account.id == uiState.selectedAccount?.id
                     
-                    // More button if there are more accounts
-                    if (uiState.accounts.size > 5) {
-                        item {
-                            FilterChip(
-                                selected = false,
-                                onClick = { showAccountSheet = true },
-                                label = { Text("+${uiState.accounts.size - 5} more") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Filled.MoreHoriz,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.selectAccount(account) },
+                        label = { Text(account.name) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = when (account.name.lowercase()) {
+                                    "cash" -> Icons.Filled.Money
+                                    "bank account" -> Icons.Filled.AccountBalance
+                                    "upi" -> Icons.Filled.PhoneAndroid
+                                    "credit card" -> Icons.Filled.CreditCard
+                                    else -> Icons.Filled.Wallet
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                    }
+                    )
+                }
+                
+                // Add New Account chip
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = { showAccountSheet = true },
+                        label = { Text("Add New") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        )
+                    )
                 }
             }
             
@@ -741,24 +734,47 @@ fun AddTransactionScreen(
         )
     }
     
-    // Category Picker Sheet
+    // Category Picker Sheet (using Budget's SelectCategoryBottomSheet)
     if (showCategorySheet) {
-        CategoryPickerSheet(
+        SelectCategoryBottomSheet(
             categories = uiState.categories,
-            selectedCategory = uiState.selectedCategory,
-            onCategorySelected = viewModel::selectCategory,
             onDismiss = { showCategorySheet = false },
-            onCreateCategory = { name -> viewModel.createCategory(name) }
+            onCategorySelected = { category ->
+                viewModel.selectCategory(category)
+                showCategorySheet = false
+            },
+            onAddNewCategory = {
+                showCategorySheet = false
+                showAddCategorySheet = true
+            }
         )
     }
     
-    // Account Picker Sheet
+    // Add Category Sheet (using Budget's AddCategoryBottomSheet)
+    if (showAddCategorySheet) {
+        AddCategoryBottomSheet(
+            onDismiss = { showAddCategorySheet = false },
+            onConfirm = { name, icon, color, _ ->
+                // Use the current transaction type for category type
+                val categoryType = if (uiState.transactionType == TransactionType.EXPENSE) {
+                    CategoryType.EXPENSE
+                } else {
+                    CategoryType.INCOME
+                }
+                viewModel.addCategory(name, icon, color, categoryType)
+                showAddCategorySheet = false
+            }
+        )
+    }
+    
+    // Add Account Sheet (instead of picker, now creates new accounts)
     if (showAccountSheet) {
-        AccountPickerSheet(
-            accounts = uiState.accounts,
-            selectedAccount = uiState.selectedAccount,
-            onAccountSelected = viewModel::selectAccount,
-            onDismiss = { showAccountSheet = false }
+        AddAccountSheet(
+            onDismiss = { showAccountSheet = false },
+            onConfirm = { name, type, icon, color, balance, bankCode, accountNumber ->
+                viewModel.addAccount(name, type, icon, color, balance, bankCode, accountNumber)
+                showAccountSheet = false
+            }
         )
     }
 }
@@ -1462,3 +1478,286 @@ private fun AccountPickerSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddAccountSheet(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double, bankCode: String?, accountNumber: String?) -> Unit
+) {
+    var accountName by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf(AccountType.BANK) }
+    var selectedIcon by remember { mutableStateOf("AccountBalance") }
+    var selectedColor by remember { mutableStateOf(0xFF3B82F6L) }
+    var initialBalance by remember { mutableStateOf("") }
+    var bankCode by remember { mutableStateOf("") }
+    var accountNumber by remember { mutableStateOf("") }
+    var showSmsLinking by remember { mutableStateOf(false) }
+    
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    // Account type options with emojis
+    val accountTypes = listOf(
+        AccountType.CASH to ("💵" to "Cash"),
+        AccountType.BANK to ("🏦" to "Bank"),
+        AccountType.UPI to ("📱" to "UPI"),
+        AccountType.CREDIT_CARD to ("💳" to "Card"),
+        AccountType.WALLET to ("👛" to "Wallet"),
+        AccountType.OTHER to ("💰" to "Other")
+    )
+    
+    // Color options
+    val colors = listOf(
+        0xFF22C55E, 0xFF3B82F6, 0xFF8B5CF6, 0xFFF59E0B,
+        0xFFEF4444, 0xFF06B6D4, 0xFFEC4899, 0xFF6B7280
+    )
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Add Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Account Name
+            Text(
+                text = "Account Name",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            OutlinedTextField(
+                value = accountName,
+                onValueChange = { accountName = it },
+                placeholder = { Text("e.g., HDFC Savings") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape,
+                singleLine = true
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Account Type
+            Text(
+                text = "Account Type",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                accountTypes.take(3).forEach { (type, pair) ->
+                    val (emoji, label) = pair
+                    FilterChip(
+                        selected = selectedType == type,
+                        onClick = { 
+                            selectedType = type
+                            selectedIcon = when (type) {
+                                AccountType.CASH -> "Money"
+                                AccountType.BANK -> "AccountBalance"
+                                AccountType.UPI -> "PhoneAndroid"
+                                AccountType.CREDIT_CARD -> "CreditCard"
+                                AccountType.WALLET -> "Wallet"
+                                AccountType.OTHER -> "AttachMoney"
+                            }
+                        },
+                        label = { Text("$emoji $label", maxLines = 1) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                accountTypes.drop(3).forEach { (type, pair) ->
+                    val (emoji, label) = pair
+                    FilterChip(
+                        selected = selectedType == type,
+                        onClick = { 
+                            selectedType = type
+                            selectedIcon = when (type) {
+                                AccountType.CASH -> "Money"
+                                AccountType.BANK -> "AccountBalance"
+                                AccountType.UPI -> "PhoneAndroid"
+                                AccountType.CREDIT_CARD -> "CreditCard"
+                                AccountType.WALLET -> "Wallet"
+                                AccountType.OTHER -> "AttachMoney"
+                            }
+                        },
+                        label = { Text("$emoji $label", maxLines = 1) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Color Selection
+            Text(
+                text = "Color",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                colors.forEach { color ->
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(color),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { selectedColor = color }
+                    ) {
+                        if (selectedColor == color) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Initial Balance
+            Text(
+                text = "Initial Balance",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            OutlinedTextField(
+                value = initialBalance,
+                onValueChange = { initialBalance = it.filter { c -> c.isDigit() || c == '.' } },
+                placeholder = { Text("0.00") },
+                prefix = { Text("₹", fontWeight = FontWeight.Bold) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // SMS Linking (optional, for bank accounts)
+            if (selectedType == AccountType.BANK || selectedType == AccountType.CREDIT_CARD) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Enable SMS Auto-Detection",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Auto-detect transactions from SMS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showSmsLinking,
+                        onCheckedChange = { showSmsLinking = it }
+                    )
+                }
+                
+                if (showSmsLinking) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    OutlinedTextField(
+                        value = bankCode,
+                        onValueChange = { bankCode = it.uppercase() },
+                        label = { Text("Bank Code") },
+                        placeholder = { Text("e.g., HDFC, SBI, ICICI") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = InputFieldShape,
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    OutlinedTextField(
+                        value = accountNumber,
+                        onValueChange = { accountNumber = it.filter { c -> c.isDigit() }.take(4) },
+                        label = { Text("Last 4 Digits") },
+                        placeholder = { Text("e.g., 1234") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = InputFieldShape,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+                
+                Button(
+                    onClick = {
+                        if (accountName.isNotBlank()) {
+                            val balance = initialBalance.toDoubleOrNull() ?: 0.0
+                            onConfirm(
+                                accountName.trim(),
+                                selectedType,
+                                selectedIcon,
+                                selectedColor,
+                                balance,
+                                if (showSmsLinking && bankCode.isNotBlank()) bankCode else null,
+                                if (showSmsLinking && accountNumber.isNotBlank()) accountNumber else null
+                            )
+                        }
+                    },
+                    enabled = accountName.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Add")
+                }
+            }
+        }
+    }
+}

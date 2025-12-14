@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -219,9 +221,9 @@ fun AccountsScreen(
         }
     }
     
-    // Add/Edit Dialog
+    // Add/Edit Sheet (Bottom Sheet)
     if (uiState.showAddDialog) {
-        AddEditAccountDialog(
+        AddEditAccountSheet(
             existingAccount = uiState.editingAccount,
             bankSuggestions = uiState.bankSuggestions,
             onDismiss = { viewModel.hideDialog() },
@@ -711,7 +713,7 @@ private fun DeleteConfirmDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEditAccountDialog(
+private fun AddEditAccountSheet(
     existingAccount: Account?,
     bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
@@ -744,360 +746,438 @@ private fun AddEditAccountDialog(
         }
     }
     
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (existingAccount != null) "Edit Account" else "Add Account",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Name
-                item {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Account Name *") },
-                        placeholder = { Text("e.g., HDFC Savings") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                Text(
+                    text = if (existingAccount != null) "Edit Account" else "Add Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Account Name *") },
+                placeholder = { Text("e.g., HDFC Savings") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Type Dropdown
+            ExposedDropdownMenuBox(
+                expanded = expandedType,
+                onExpandedChange = { expandedType = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedType.name.replace("_", " "),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Type") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedType) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor()
+                )
+                
+                ExposedDropdownMenu(
+                    expanded = expandedType,
+                    onDismissRequest = { expandedType = false }
+                ) {
+                    AccountType.entries.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type.name.replace("_", " ")) },
+                            onClick = {
+                                selectedType = type
+                                expandedType = false
+                            }
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Balance
+            OutlinedTextField(
+                value = balance,
+                onValueChange = { 
+                    balance = it.filter { c -> c.isDigit() || c == '.' || c == '-' }
+                },
+                label = { Text("Current Balance") },
+                prefix = { Text("₹") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // SMS Detection toggle (for new non-cash accounts)
+            if (existingAccount == null && selectedType != AccountType.CASH) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (enableSmsDetection) 
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.md)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Sms,
+                                        contentDescription = null,
+                                        tint = if (enableSmsDetection) 
+                                            MaterialTheme.colorScheme.primary 
+                                        else 
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Enable SMS Auto-Detection",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Text(
+                                    text = "Automatically track transactions from bank SMS",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = enableSmsDetection,
+                                onCheckedChange = { enableSmsDetection = it }
+                            )
+                        }
+                        
+                        if (enableSmsDetection) {
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            
+                            // Bank Selector - Opens Bottom Sheet
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { expandedBank = true }
+                            ) {
+                                OutlinedTextField(
+                                    value = selectedBank?.name ?: "",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Select Bank *") },
+                                    placeholder = { Text("Tap to select bank...") },
+                                    trailingIcon = { 
+                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null) 
+                                    },
+                                    leadingIcon = {
+                                        if (selectedBank != null) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(selectedBank!!.color))
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Filled.AccountBalance,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            
+                            // Account Number (optional)
+                            OutlinedTextField(
+                                value = accountNumber,
+                                onValueChange = { 
+                                    if (it.length <= 4 && it.all { c -> c.isDigit() }) {
+                                        accountNumber = it
+                                    }
+                                },
+                                label = { Text("Last 4 Digits (Optional)") },
+                                placeholder = { Text("e.g., 1234") },
+                                supportingText = { 
+                                    Text("Helps match SMS to this specific account") 
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Icon Picker (only when not linked)
+            if (!enableSmsDetection) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = "Icon",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    items(availableIcons) { iconName ->
+                        val isSelected = iconName == selectedIcon
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) 
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else 
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable { selectedIcon = iconName },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = getAccountIcon(iconName),
+                                contentDescription = iconName,
+                                tint = if (isSelected) 
+                                    MaterialTheme.colorScheme.primary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
                 
-                // Type Dropdown
-                item {
-                    ExposedDropdownMenuBox(
-                        expanded = expandedType,
-                        onExpandedChange = { expandedType = it }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedType.name.replace("_", " "),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Type") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedType) },
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                // Color Picker
+                Text(
+                    text = "Color",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    items(availableColors) { color ->
+                        val isSelected = color == selectedColor
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor()
-                        )
-                        
-                        ExposedDropdownMenu(
-                            expanded = expandedType,
-                            onDismissRequest = { expandedType = false }
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(color))
+                                .clickable { selectedColor = color },
+                            contentAlignment = Alignment.Center
                         ) {
-                            AccountType.entries.forEach { type ->
-                                DropdownMenuItem(
-                                    text = { Text(type.name.replace("_", " ")) },
-                                    onClick = {
-                                        selectedType = type
-                                        expandedType = false
-                                    }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = "Selected",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
                 }
-                
-                // Balance
-                item {
-                    OutlinedTextField(
-                        value = balance,
-                        onValueChange = { 
-                            balance = it.filter { c -> c.isDigit() || c == '.' || c == '-' }
-                        },
-                        label = { Text("Current Balance") },
-                        prefix = { Text("₹") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.xxl))
+            
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
                 }
                 
-                // SMS Detection toggle (for new non-cash accounts)
-                if (existingAccount == null && selectedType != AccountType.CASH) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (enableSmsDetection) 
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                else 
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(Spacing.md)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Sms,
-                                                contentDescription = null,
-                                                tint = if (enableSmsDetection) 
-                                                    MaterialTheme.colorScheme.primary 
-                                                else 
-                                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Text(
-                                                text = "Enable SMS Auto-Detection",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                        Text(
-                                            text = "Automatically track transactions from bank SMS",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Switch(
-                                        checked = enableSmsDetection,
-                                        onCheckedChange = { enableSmsDetection = it }
-                                    )
-                                }
-                                
-                                if (enableSmsDetection) {
-                                    Spacer(modifier = Modifier.height(Spacing.md))
-                                    
-                                    // Bank Selector
-                                    ExposedDropdownMenuBox(
-                                        expanded = expandedBank,
-                                        onExpandedChange = { expandedBank = it }
-                                    ) {
-                                        OutlinedTextField(
-                                            value = selectedBank?.name ?: "",
-                                            onValueChange = { searchQuery = it },
-                                            label = { Text("Select Bank *") },
-                                            placeholder = { Text("Search banks...") },
-                                            trailingIcon = { 
-                                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBank) 
-                                            },
-                                            leadingIcon = {
-                                                if (selectedBank != null) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(20.dp)
-                                                            .clip(CircleShape)
-                                                            .background(Color(selectedBank!!.color))
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.AccountBalance,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .menuAnchor()
-                                        )
-                                        
-                                        ExposedDropdownMenu(
-                                            expanded = expandedBank,
-                                            onDismissRequest = { expandedBank = false }
-                                        ) {
-                                            // Custom templates first (if any)
-                                            if (customBanks.isNotEmpty()) {
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            "Your Custom Templates",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.primary
-                                                        )
-                                                    },
-                                                    onClick = {},
-                                                    enabled = false
-                                                )
-                                                customBanks.forEach { bank ->
-                                                    BankDropdownItem(
-                                                        bank = bank,
-                                                        isCustom = true,
-                                                        onClick = {
-                                                            selectedBank = bank
-                                                            selectedColor = bank.color
-                                                            if (name.isBlank()) name = bank.name
-                                                            expandedBank = false
-                                                        }
-                                                    )
-                                                }
-                                                HorizontalDivider()
-                                            }
-                                            
-                                            // Registry banks
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        "Popular Banks",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                },
-                                                onClick = {},
-                                                enabled = false
-                                            )
-                                            filteredBanks.filter { !it.isCustom }.take(12).forEach { bank ->
-                                                BankDropdownItem(
-                                                    bank = bank,
-                                                    isCustom = false,
-                                                    onClick = {
-                                                        selectedBank = bank
-                                                        selectedColor = bank.color
-                                                        if (name.isBlank()) name = bank.name
-                                                        expandedBank = false
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer(modifier = Modifier.height(Spacing.sm))
-                                    
-                                    // Account Number (optional)
-                                    OutlinedTextField(
-                                        value = accountNumber,
-                                        onValueChange = { 
-                                            if (it.length <= 4 && it.all { c -> c.isDigit() }) {
-                                                accountNumber = it
-                                            }
-                                        },
-                                        label = { Text("Last 4 Digits (Optional)") },
-                                        placeholder = { Text("e.g., 1234") },
-                                        supportingText = { 
-                                            Text("Helps match SMS to this specific account") 
-                                        },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
+                Button(
+                    onClick = {
+                        val balanceValue = balance.toDoubleOrNull() ?: 0.0
+                        if (name.isNotBlank()) {
+                            if (enableSmsDetection && selectedBank != null) {
+                                onConfirmLinked(
+                                    name, 
+                                    selectedBank!!, 
+                                    accountNumber.takeIf { it.isNotBlank() },
+                                    selectedType,
+                                    balanceValue
+                                )
+                            } else {
+                                onConfirm(name, selectedType, selectedIcon, selectedColor, balanceValue)
                             }
                         }
+                    },
+                    enabled = name.isNotBlank() && (!enableSmsDetection || selectedBank != null),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (existingAccount != null) "Save" else "Add")
+                }
+            }
+        }
+    }
+    
+    // Bank Selection Bottom Sheet
+    if (expandedBank) {
+        ModalBottomSheet(
+            onDismissRequest = { expandedBank = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg)
+                    .padding(bottom = Spacing.xxl)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Select Bank",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = { expandedBank = false }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
                 }
                 
-                // Icon Picker (only when not linked)
-                if (!enableSmsDetection) {
-                    item {
-                        Text(
-                            text = "Icon",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            items(availableIcons) { iconName ->
-                                val isSelected = iconName == selectedIcon
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isSelected) 
-                                                MaterialTheme.colorScheme.primaryContainer
-                                            else 
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                        .clickable { selectedIcon = iconName },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = getAccountIcon(iconName),
-                                        contentDescription = iconName,
-                                        tint = if (isSelected) 
-                                            MaterialTheme.colorScheme.primary 
-                                        else 
-                                            MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                // Search field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search banks...") },
+                    leadingIcon = {
+                        Icon(Icons.Filled.Search, contentDescription = null)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    // Custom templates first (if any)
+                    if (customBanks.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Your Custom Templates",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = Spacing.sm)
+                            )
+                        }
+                        items(customBanks, key = { it.code }) { bank ->
+                            BankListItem(
+                                bank = bank,
+                                isCustom = true,
+                                isSelected = selectedBank?.code == bank.code,
+                                onClick = {
+                                    selectedBank = bank
+                                    selectedColor = bank.color
+                                    if (name.isBlank()) name = bank.name
+                                    expandedBank = false
                                 }
-                            }
+                            )
+                        }
+                        item {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
                         }
                     }
                     
-                    // Color Picker
+                    // Popular banks
                     item {
                         Text(
-                            text = "Color",
+                            text = "Popular Banks",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = Spacing.sm)
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            items(availableColors) { color ->
-                                val isSelected = color == selectedColor
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(color))
-                                        .clickable { selectedColor = color },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Check,
-                                            contentDescription = "Selected",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
+                    }
+                    
+                    items(filteredBanks.filter { !it.isCustom }, key = { it.code }) { bank ->
+                        BankListItem(
+                            bank = bank,
+                            isCustom = false,
+                            isSelected = selectedBank?.code == bank.code,
+                            onClick = {
+                                selectedBank = bank
+                                selectedColor = bank.color
+                                if (name.isBlank()) name = bank.name
+                                expandedBank = false
                             }
-                        }
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val balanceValue = balance.toDoubleOrNull() ?: 0.0
-                    if (name.isNotBlank()) {
-                        if (enableSmsDetection && selectedBank != null) {
-                            onConfirmLinked(
-                                name, 
-                                selectedBank!!, 
-                                accountNumber.takeIf { it.isNotBlank() },
-                                selectedType,
-                                balanceValue
-                            )
-                        } else {
-                            onConfirm(name, selectedType, selectedIcon, selectedColor, balanceValue)
-                        }
-                    }
-                },
-                enabled = name.isNotBlank() && (!enableSmsDetection || selectedBank != null)
-            ) {
-                Text(if (existingAccount != null) "Save" else "Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
         }
-    )
+    }
 }
 
 @Composable
@@ -1142,6 +1222,85 @@ private fun BankDropdownItem(
         },
         onClick = onClick
     )
+}
+
+@Composable
+private fun BankListItem(
+    bank: BankSuggestion,
+    isCustom: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            else 
+                MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(bank.color)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = bank.code.take(2),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Text(
+                        text = bank.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (isCustom) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Custom", style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(20.dp),
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        )
+                    }
+                }
+                Text(
+                    text = bank.senderPatterns.take(3).joinToString(", "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

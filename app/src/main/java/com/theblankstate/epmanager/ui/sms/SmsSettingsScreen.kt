@@ -172,9 +172,9 @@ fun SmsSettingsScreen(
         }
     }
     
-    // Add Bank Dialog
+    // Add Bank Bottom Sheet
     if (showAddBankDialog) {
-        AddCustomBankDialog(
+        AddCustomBankSheet(
             onDismiss = { showAddBankDialog = false },
             onConfirm = { bankName, senderIds ->
                 viewModel.addCustomBank(bankName, senderIds)
@@ -411,61 +411,155 @@ fun BuiltInBankCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddCustomBankDialog(
+fun AddCustomBankSheet(
     onDismiss: () -> Unit,
     onConfirm: (bankName: String, senderIds: String) -> Unit
 ) {
     var bankName by remember { mutableStateOf("") }
     var senderIds by remember { mutableStateOf("") }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("Add Custom Bank") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "If your bank SMS is not auto-detected, add it here.",
-                    style = MaterialTheme.typography.bodySmall
+                    text = "Add Custom Bank",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
                 )
-                
-                OutlinedTextField(
-                    value = bankName,
-                    onValueChange = { bankName = it },
-                    label = { Text("Bank Name") },
-                    placeholder = { Text("e.g., My Regional Bank") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                OutlinedTextField(
-                    value = senderIds,
-                    onValueChange = { senderIds = it },
-                    label = { Text("SMS Sender IDs") },
-                    placeholder = { Text("e.g., MYBANK, MY-BANK") },
-                    supportingText = {
-                        Text("Comma-separated sender IDs from your bank SMS")
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(bankName, senderIds) },
-                enabled = bankName.isNotBlank() && senderIds.isNotBlank()
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            Text(
+                text = "If your bank SMS is not auto-detected, add it here.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            Text(
+                text = "Bank Name",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            OutlinedTextField(
+                value = bankName,
+                onValueChange = { bankName = it },
+                placeholder = { Text("e.g., Kotak Mahindra Bank") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            Text(
+                text = "SMS Sender ID",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            
+            // Help card explaining how to find sender ID
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.sm),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                )
             ) {
-                Text("Add Bank")
+                Column(
+                    modifier = Modifier.padding(Spacing.sm)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        Text(
+                            text = "How to find Sender ID?",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        text = "Check your SMS sender name. It usually looks like:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "JD-KOTAKB-S, JX-KOTAKB-T, JK-KOTAKB-S",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "The common part \"KOTAKB\" is the sender ID you need!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            OutlinedTextField(
+                value = senderIds,
+                onValueChange = { senderIds = it },
+                placeholder = { Text("e.g., MYBANK, MY-BANK") },
+                supportingText = {
+                    Text("Comma-separated sender IDs from your bank SMS")
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.xxl))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+                
+                Button(
+                    onClick = { onConfirm(bankName, senderIds) },
+                    enabled = bankName.isNotBlank() && senderIds.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Add Bank")
+                }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

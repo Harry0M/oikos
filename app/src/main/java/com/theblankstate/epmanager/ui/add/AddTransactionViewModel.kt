@@ -358,8 +358,59 @@ class AddTransactionViewModel @Inject constructor(
         }
     }
     
+    fun addCategory(name: String, icon: String, color: Long, type: CategoryType) {
+        viewModelScope.launch {
+            val newCategory = Category(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                icon = icon,
+                color = color,
+                type = type
+            )
+            categoryRepository.insertCategory(newCategory)
+            // Refresh categories and select the new one
+            val updatedCategories = categoryRepository.getCategoriesByType(type).first()
+            _uiState.update { it.copy(
+                categories = updatedCategories,
+                selectedCategory = newCategory
+            ) }
+        }
+    }
+    
     fun selectAccount(account: Account) {
         _uiState.update { it.copy(selectedAccount = account) }
+    }
+    
+    fun addAccount(
+        name: String,
+        type: AccountType,
+        icon: String,
+        color: Long,
+        balance: Double,
+        bankCode: String?,
+        accountNumber: String?
+    ) {
+        viewModelScope.launch {
+            val newAccount = Account(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                type = type,
+                icon = icon,
+                color = color,
+                balance = balance,
+                bankCode = bankCode,
+                accountNumber = accountNumber,
+                linkedSenderIds = bankCode, // Use bank code as default sender ID
+                isLinked = bankCode != null
+            )
+            accountRepository.insertAccount(newAccount)
+            // Refresh accounts and select the new one
+            val updatedAccounts = accountRepository.getAllAccounts().first()
+            _uiState.update { it.copy(
+                accounts = updatedAccounts,
+                selectedAccount = newAccount
+            ) }
+        }
     }
     
     fun updateDate(timestamp: Long) {
