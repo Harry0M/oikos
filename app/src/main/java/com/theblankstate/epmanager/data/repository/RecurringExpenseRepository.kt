@@ -3,6 +3,7 @@ package com.theblankstate.epmanager.data.repository
 import com.theblankstate.epmanager.data.local.dao.RecurringExpenseDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
 import com.theblankstate.epmanager.data.model.*
+import com.theblankstate.epmanager.util.LocationHelper
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 import javax.inject.Inject
@@ -12,7 +13,8 @@ import javax.inject.Singleton
 class RecurringExpenseRepository @Inject constructor(
     private val recurringExpenseDao: RecurringExpenseDao,
     private val transactionDao: TransactionDao,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val locationHelper: LocationHelper
 ) {
     fun getActiveRecurringExpenses(): Flow<List<RecurringExpense>> =
         recurringExpenseDao.getActiveRecurringExpenses()
@@ -71,6 +73,10 @@ class RecurringExpenseRepository @Inject constructor(
         
         dueExpenses.forEach { recurring ->
             if (recurring.autoAdd) {
+                // Try to get location
+                val location = locationHelper.getCurrentLocation()
+                val locationName = location?.let { locationHelper.getLocationName(it) }
+                
                 // Create transaction
                 val transaction = Transaction(
                     amount = recurring.amount,
@@ -80,7 +86,11 @@ class RecurringExpenseRepository @Inject constructor(
                     date = recurring.nextDueDate,
                     note = "${recurring.name} (Recurring)",
                     isRecurring = true,
-                    recurringId = recurring.id
+                    recurringId = recurring.id,
+                    // Location metadata
+                    latitude = location?.latitude,
+                    longitude = location?.longitude,
+                    locationName = locationName
                 )
                 transactionDao.insertTransaction(transaction)
             }

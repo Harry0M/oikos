@@ -28,6 +28,15 @@ class TransactionRepository @Inject constructor(
     
     fun getTransactionsByAccount(accountId: String): Flow<List<Transaction>> = 
         transactionDao.getTransactionsByAccount(accountId)
+
+    fun getTransactionsByGoal(goalId: String): Flow<List<Transaction>> = 
+        transactionDao.getTransactionsByGoal(goalId)
+
+    fun getTransactionsByDebt(debtId: String): Flow<List<Transaction>> = 
+        transactionDao.getTransactionsByDebt(debtId)
+
+    fun getTransactionsByRecurring(recurringId: String): Flow<List<Transaction>> = 
+        transactionDao.getTransactionsByRecurring(recurringId)
     
     fun getTransactionsByDateRange(startDate: Long, endDate: Long): Flow<List<Transaction>> = 
         transactionDao.getTransactionsByDateRange(startDate, endDate)

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
+import android.location.Location
 import com.theblankstate.epmanager.data.local.ExpenseDatabase
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.TransactionType
@@ -28,6 +29,8 @@ import kotlinx.coroutines.withContext
  * 3. Custom bank template support
  * 4. Instant database insertion for immediate UI update
  */
+import com.theblankstate.epmanager.util.LocationHelper
+
 class SmsBroadcastReceiver : BroadcastReceiver() {
     
     companion object {
@@ -38,8 +41,16 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     private val aiParser = AiSmsParser()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
+    // Lazy initialized helper (context needed)
+    private lateinit var locationHelper: LocationHelper
+    
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        
+        // Initialize location helper
+        if (!::locationHelper.isInitialized) {
+            locationHelper = LocationHelper(context.applicationContext)
+        }
         
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         if (messages.isNullOrEmpty()) return
@@ -98,7 +109,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         
         return hasAmountIndicator && hasTransactionKeyword
     }
-    
+
     /**
      * Fast processing path - parse with regex first, then enhance with AI in background
      * IMPORTANT: Only processes SMS from banks that are linked to user accounts
@@ -117,18 +128,22 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         
         Log.d(TAG, "Found linked account for sender: $sender - processing...")
         
+        // Try to get location
+        val location = locationHelper.getCurrentLocation()
+        val locationName = location?.let { locationHelper.getLocationName(it) }
+        
         // Step 1: Quick regex parse (immediate)
         val regexParsed = parser.parse(body, sender)
         
         if (regexParsed != null && regexParsed.amount > 0) {
             // We got a valid parse, save immediately
-            saveTransactionFromRegex(context, db, regexParsed, sender)
+            saveTransactionFromRegex(context, db, regexParsed, sender, location, locationName)
         } else {
             // Regex failed, save as pending and try AI
             savePendingSms(db, body, sender)
             
             // Try AI parsing in background (don't block)
-            tryAiParsingInBackground(context, db, body, sender)
+            tryAiParsingInBackground(context, db, body, sender, location, locationName)
         }
     }
     
@@ -167,7 +182,9 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         context: Context,
         db: ExpenseDatabase,
         parsed: SmsParser.ParsedTransaction,
-        sender: String
+        sender: String,
+        location: Location?,
+        locationName: String?
     ) {
         val accountRepository = AccountRepository(db.accountDao())
         
@@ -191,7 +208,11 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             refNumber = parsed.referenceNumber,
             upiId = parsed.upiId,
             senderName = parsed.senderName,
-            receiverName = parsed.receiverName
+            receiverName = parsed.receiverName,
+            // Location metadata
+            latitude = location?.latitude,
+            longitude = location?.longitude,
+            locationName = locationName
         )
         
         db.transactionDao().insertTransaction(transaction)
@@ -231,7 +252,9 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         context: Context,
         db: ExpenseDatabase,
         body: String,
-        sender: String
+        sender: String,
+        location: Location?,
+        locationName: String?
     ) {
         scope.launch {
             try {
@@ -254,7 +277,11 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                         accountId = matchedAccountId,
                         date = System.currentTimeMillis(),
                         note = buildNoteFromAi(aiResult, sender, matchedAccountId != null),
-                        isSynced = false
+                        isSynced = false,
+                        // Location metadata
+                        latitude = location?.latitude,
+                        longitude = location?.longitude,
+                        locationName = locationName
                     )
                     
                     db.transactionDao().insertTransaction(transaction)

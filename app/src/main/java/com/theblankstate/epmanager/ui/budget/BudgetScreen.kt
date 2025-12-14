@@ -2,6 +2,7 @@ package com.theblankstate.epmanager.ui.budget
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +29,7 @@ import com.theblankstate.epmanager.ui.theme.*
 @Composable
 fun BudgetScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToHistory: (String) -> Unit,
     viewModel: BudgetViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -92,7 +94,10 @@ fun BudgetScreen(
                     ) { budgetWithSpending ->
                         CompactBudgetItem(
                             budgetWithSpending = budgetWithSpending,
-                            onDelete = { viewModel.deleteBudget(budgetWithSpending.budget) }
+                            onDelete = { viewModel.deleteBudget(budgetWithSpending.budget) },
+                            onClick = { 
+                                budgetWithSpending.category?.id?.let { onNavigateToHistory(it) }
+                            }
                         )
                     }
                 }
@@ -247,7 +252,8 @@ private fun EmptyBudgetState() {
 @Composable
 private fun CompactBudgetItem(
     budgetWithSpending: BudgetWithSpending,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit
 ) {
     val category = budgetWithSpending.category
     val isOverBudget = budgetWithSpending.spent > budgetWithSpending.budget.amount
@@ -263,7 +269,9 @@ private fun CompactBudgetItem(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp

@@ -74,11 +74,28 @@ fun AppNavHost(
                 },
                 onNavigateToCategories = {
                     navController.navigate(Screen.Categories.route)
+                },
+                onNavigateToHistory = { type, id ->
+                    navController.navigate("${Screen.Transactions.route}?type=$type&id=$id")
                 }
             )
         }
         
-        composable(Screen.Transactions.route) {
+        composable(
+            route = "${Screen.Transactions.route}?type={type}&id={id}",
+            arguments = listOf(
+                navArgument("type") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("id") { 
+                    type = NavType.StringType 
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) {
             TransactionsScreen(
                 onNavigateToAddTransaction = {
                     navController.navigate(Screen.AddTransaction.route)
@@ -145,6 +162,9 @@ fun AppNavHost(
             BudgetScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToHistory = { categoryId ->
+                    navController.navigate("${Screen.Transactions.route}?type=CATEGORY&id=$categoryId")
                 }
             )
         }
@@ -153,6 +173,9 @@ fun AppNavHost(
             RecurringScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToHistory = { recurringId ->
+                    navController.navigate("${Screen.Transactions.route}?type=RECURRING&id=$recurringId")
                 }
             )
         }
@@ -169,6 +192,9 @@ fun AppNavHost(
             GoalsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToHistory = { goalId ->
+                    navController.navigate("${Screen.Transactions.route}?type=GOAL&id=$goalId")
                 }
             )
         }
@@ -293,6 +319,9 @@ fun AppNavHost(
             DebtScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToHistory = { debtId ->
+                    navController.navigate("${Screen.Transactions.route}?type=DEBT&id=$debtId")
                 }
             )
         }

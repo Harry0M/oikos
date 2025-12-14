@@ -34,6 +34,7 @@ import java.util.*
 @Composable
 fun DebtScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToHistory: (String) -> Unit,
     viewModel: DebtViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -156,7 +157,8 @@ fun DebtScreen(
             onDismiss = { viewModel.hideDetailSheet() },
             onAddPayment = { viewModel.showPaymentSheet() },
             onSettle = { viewModel.settleDebt() },
-            onDelete = { viewModel.deleteDebt() }
+            onDelete = { viewModel.deleteDebt() },
+            onViewHistory = { onNavigateToHistory(uiState.selectedDebt!!.id) }
         )
     }
     
@@ -543,7 +545,8 @@ private fun DebtDetailSheet(
     onDismiss: () -> Unit,
     onAddPayment: () -> Unit,
     onSettle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onViewHistory: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val color = if (debt.type == DebtType.DEBT) Error else Green
@@ -647,12 +650,22 @@ private fun DebtDetailSheet(
             }
             
             // Payment history
-            if (payments.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = "Payment History",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
+                TextButton(onClick = onViewHistory) {
+                    Text("View All")
+                }
+            }
+            
+            if (payments.isNotEmpty()) {
                 payments.forEach { payment ->
                     Row(
                         modifier = Modifier

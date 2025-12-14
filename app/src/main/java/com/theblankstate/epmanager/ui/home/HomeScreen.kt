@@ -94,6 +94,7 @@ fun HomeScreen(
     onNavigateToSplit: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
     onNavigateToCategories: () -> Unit = {},
+    onNavigateToHistory: (String, String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -333,7 +334,10 @@ fun HomeScreen(
                     items(uiState.budgetAlerts) { budget ->
                         BudgetAlertItem(
                             budget = budget,
-                            loading = false
+                            loading = false,
+                            onClick = { 
+                                budget.category?.id?.let { onNavigateToHistory("CATEGORY", it) }
+                            }
                         )
                     }
                 }
@@ -371,6 +375,18 @@ fun HomeScreen(
                     is UpcomingDue.DebtDue -> viewModel.payDebt(due.id, amount, note)
                     is UpcomingDue.SubscriptionDue, is UpcomingDue.ExpenseDue -> viewModel.paySubscriptionEarly(due)
                     else -> { }
+                }
+            },
+            onViewHistory = {
+                val (type, id) = when (due.type) {
+                    UpcomingDueType.DEBT, UpcomingDueType.CREDIT -> "DEBT" to due.id
+                    UpcomingDueType.EXPENSE, UpcomingDueType.SUBSCRIPTION -> "RECURRING" to due.id
+                    UpcomingDueType.GOAL -> "GOAL" to due.id
+                    else -> null to null
+                }
+                if (type != null && id != null) {
+                    viewModel.dismissDueSheet()
+                    onNavigateToHistory(type, id)
                 }
             }
         )
@@ -659,7 +675,8 @@ private fun UpcomingDueItem(
 private fun UpcomingDueActionSheet(
     due: UpcomingDue,
     onDismiss: () -> Unit,
-    onPayNow: (Double, String?) -> Unit
+    onPayNow: (Double, String?) -> Unit,
+    onViewHistory: () -> Unit
 ) {
     var paymentAmount by remember { mutableStateOf(due.amount.toString()) }
     var note by remember { mutableStateOf("") }
@@ -796,6 +813,14 @@ private fun UpcomingDueActionSheet(
                     Text("Close")
                 }
             }
+            
+            // View History Button
+            TextButton(
+                onClick = onViewHistory,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("View Transaction History")
+            }
         }
     }
 }
@@ -803,14 +828,16 @@ private fun UpcomingDueActionSheet(
 @Composable
 private fun BudgetAlertItem(
     budget: com.theblankstate.epmanager.data.model.BudgetWithSpending,
-    loading: Boolean
+    loading: Boolean,
+    onClick: () -> Unit
 ) {
     val progress = budget.percentage / 100f
     
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
+            .padding(vertical = Spacing.xs)
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(Spacing.md)) {

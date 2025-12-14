@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.theblankstate.epmanager.data.local.dao.AccountDao
 import com.theblankstate.epmanager.data.local.dao.BudgetDao
 import com.theblankstate.epmanager.data.local.dao.CategoryDao
@@ -52,7 +54,7 @@ import com.theblankstate.epmanager.data.model.Transaction
         Debt::class,
         DebtPayment::class
     ],
-    version = 13, // Added scheduleDay column to recurring_expenses
+    version = 14, // Added goalId and debtId to transactions
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -75,11 +77,19 @@ abstract class ExpenseDatabase : RoomDatabase() {
         
         fun getInstance(context: Context): ExpenseDatabase {
             return INSTANCE ?: synchronized(this) {
+                val MIGRATION_13_14 = object : Migration(13, 14) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        database.execSQL("ALTER TABLE transactions ADD COLUMN goalId TEXT DEFAULT NULL")
+                        database.execSQL("ALTER TABLE transactions ADD COLUMN debtId TEXT DEFAULT NULL")
+                    }
+                }
+
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
+                    .addMigrations(MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

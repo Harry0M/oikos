@@ -29,6 +29,7 @@ import com.theblankstate.epmanager.ui.theme.*
 @Composable
 fun GoalsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToHistory: (String) -> Unit,
     viewModel: GoalsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -91,7 +92,8 @@ fun GoalsScreen(
                     GoalCard(
                         goal = goal,
                         onContribute = { viewModel.showContributeDialog(goal) },
-                        onDelete = { viewModel.deleteGoal(goal) }
+                        onDelete = { viewModel.deleteGoal(goal) },
+                        onClick = { onNavigateToHistory(goal.id) }
                     )
                 }
             }
@@ -206,12 +208,15 @@ private fun OverviewCard(totalSaved: Double, totalTarget: Double) {
 private fun GoalCard(
     goal: SavingsGoal,
     onContribute: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
         Column(
             modifier = Modifier.padding(Spacing.md)

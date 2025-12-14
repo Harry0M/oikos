@@ -1,5 +1,7 @@
 package com.theblankstate.epmanager.ui.recurring
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import java.util.*
 @Composable
 fun RecurringScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToHistory: (String) -> Unit,
     viewModel: RecurringViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -141,7 +144,8 @@ fun RecurringScreen(
                             recurring = recurring,
                             category = category,
                             onToggleActive = { viewModel.toggleActive(recurring) },
-                            onDelete = { viewModel.deleteRecurring(recurring) }
+                            onDelete = { viewModel.deleteRecurring(recurring) },
+                            onClick = { onNavigateToHistory(recurring.id) }
                         )
                     }
                 }
@@ -170,12 +174,16 @@ private fun RecurringItem(
     recurring: RecurringExpense,
     category: Category?,
     onToggleActive: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit
 ) {
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (recurring.isActive) 
                 MaterialTheme.colorScheme.surface 

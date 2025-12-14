@@ -1,5 +1,6 @@
 package com.theblankstate.epmanager.ui.transactions
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.Category
@@ -29,7 +30,8 @@ data class TransactionsUiState(
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -42,9 +44,23 @@ class TransactionsViewModel @Inject constructor(
     }
     
     private fun loadTransactions() {
+        // Get filter arguments from navigation
+        val filterType = savedStateHandle.get<String>("type")
+        val filterId = savedStateHandle.get<String>("id") ?: ""
+        
+        // Select the appropriate data source
+        val transactionsFlow = when (filterType) {
+            "GOAL" -> transactionRepository.getTransactionsByGoal(filterId)
+            "DEBT" -> transactionRepository.getTransactionsByDebt(filterId)
+            "RECURRING" -> transactionRepository.getTransactionsByRecurring(filterId)
+            "CATEGORY" -> transactionRepository.getTransactionsByCategory(filterId)
+            "ACCOUNT" -> transactionRepository.getTransactionsByAccount(filterId)
+            else -> transactionRepository.getAllTransactions()
+        }
+
         viewModelScope.launch {
             combine(
-                transactionRepository.getAllTransactions(),
+                transactionsFlow,
                 categoryRepository.getAllCategories(),
                 searchQuery
             ) { transactions, categories, query ->

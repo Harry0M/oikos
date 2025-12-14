@@ -17,6 +17,7 @@ import com.theblankstate.epmanager.data.repository.SavingsGoalRepository
 import com.theblankstate.epmanager.data.repository.BudgetRepository
 import com.theblankstate.epmanager.data.model.BudgetWithSpending
 import com.theblankstate.epmanager.ui.transactions.TransactionWithCategory
+import com.theblankstate.epmanager.util.LocationHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -90,7 +91,8 @@ class HomeViewModel @Inject constructor(
     private val debtRepository: DebtRepository,
     private val recurringRepository: RecurringExpenseRepository,
     private val savingsGoalRepository: SavingsGoalRepository,
-    private val budgetRepository: BudgetRepository
+    private val budgetRepository: BudgetRepository,
+    private val locationHelper: LocationHelper
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -328,6 +330,10 @@ class HomeViewModel @Inject constructor(
                         val defaultAccount = accountRepository.getDefaultAccount()
                         val accountId = defaultAccount?.id ?: "cash"
                         
+                        // Try to get location
+                        val location = locationHelper.getCurrentLocation()
+                        val locationName = location?.let { locationHelper.getLocationName(it) }
+                        
                         val transaction = Transaction(
                             amount = due.amount,
                             categoryId = expense.categoryId ?: "expense",
@@ -335,7 +341,11 @@ class HomeViewModel @Inject constructor(
                             type = TransactionType.EXPENSE,
                             date = System.currentTimeMillis(),
                             note = "Early payment: ${due.title}",
-                            recurringId = due.id
+                            recurringId = due.id,
+                            // Location metadata
+                            latitude = location?.latitude,
+                            longitude = location?.longitude,
+                            locationName = locationName
                         )
                         transactionRepository.insertTransaction(transaction)
                         
@@ -395,13 +405,21 @@ class HomeViewModel @Inject constructor(
                 val defaultAccount = accountRepository.getDefaultAccount()
                 val accountId = defaultAccount?.id ?: "cash"
                 
+                // Try to get location
+                val location = locationHelper.getCurrentLocation()
+                val locationName = location?.let { locationHelper.getLocationName(it) }
+                
                 val transaction = Transaction(
                     amount = amount,
                     categoryId = categoryId,
                     accountId = accountId,
                     type = transactionType,
                     date = System.currentTimeMillis(),
-                    note = transactionNote
+                    note = transactionNote,
+                    // Location metadata
+                    latitude = location?.latitude,
+                    longitude = location?.longitude,
+                    locationName = locationName
                 )
                 transactionRepository.insertTransaction(transaction)
                 

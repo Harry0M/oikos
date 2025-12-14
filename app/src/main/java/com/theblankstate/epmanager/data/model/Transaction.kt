@@ -43,6 +43,8 @@ data class Transaction(
     val note: String? = null,
     val isRecurring: Boolean = false,
     val recurringId: String? = null, // Link to recurring expense template
+    val goalId: String? = null, // Link to savings goal
+    val debtId: String? = null, // Link to debt/credit
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val isSynced: Boolean = false, // For cloud sync tracking

@@ -5,6 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.model.GoalPresets
 import com.theblankstate.epmanager.data.model.SavingsGoal
 import com.theblankstate.epmanager.data.repository.SavingsGoalRepository
+import com.theblankstate.epmanager.data.model.Transaction
+import com.theblankstate.epmanager.data.model.TransactionType
+import com.theblankstate.epmanager.data.repository.AccountRepository
+import com.theblankstate.epmanager.data.repository.TransactionRepository
+import com.theblankstate.epmanager.data.repository.CategoryRepository
+import com.theblankstate.epmanager.util.LocationHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,7 +28,11 @@ data class GoalsUiState(
 
 @HiltViewModel
 class GoalsViewModel @Inject constructor(
-    private val repository: SavingsGoalRepository
+    private val repository: SavingsGoalRepository,
+    private val transactionRepository: TransactionRepository,
+    private val accountRepository: AccountRepository,
+    private val categoryRepository: CategoryRepository,
+    private val locationHelper: LocationHelper
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(GoalsUiState())
@@ -30,6 +40,9 @@ class GoalsViewModel @Inject constructor(
     
     init {
         loadGoals()
+        viewModelScope.launch {
+            categoryRepository.ensureSplitCategoriesExist()
+        }
     }
     
     private fun loadGoals() {
@@ -101,7 +114,42 @@ class GoalsViewModel @Inject constructor(
     
     fun addContribution(goalId: String, amount: Double) {
         viewModelScope.launch {
-            repository.addContribution(goalId, amount)
+            // Get the goal details for the note/category
+            val goal = repository.getGoalById(goalId)
+            
+            if (goal != null) {
+                // Get Default Account (or null)
+                val defaultAccount = accountRepository.getDefaultAccount()
+                val accountId = defaultAccount?.id
+                
+                // Try to get location
+                val location = locationHelper.getCurrentLocation()
+                val locationName = location?.let { locationHelper.getLocationName(it) }
+                
+                // Create Transaction
+                val transaction = Transaction(
+                    amount = amount,
+                    categoryId = "goals", // Matches CategoryRepository.ensureSplitCategoriesExist
+                    accountId = accountId,
+                    type = TransactionType.EXPENSE,
+                    date = System.currentTimeMillis(),
+                    note = "Contribution to ${goal.name}",
+                    // Location metadata
+                    latitude = location?.latitude,
+                    longitude = location?.longitude,
+                    locationName = locationName
+                )
+                transactionRepository.insertTransaction(transaction)
+                
+                // Update Account Balance
+                if (accountId != null) {
+                    accountRepository.updateBalance(accountId, -amount)
+                }
+                
+                // Add to Goal
+                repository.addContribution(goalId, amount)
+            }
+            
             hideContributeDialog()
         }
     }
