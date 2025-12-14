@@ -155,7 +155,7 @@ fun SettingsScreen(
         
         SettingsItem(
             icon = Icons.Filled.Repeat,
-            title = "Recurring Expenses",
+            title = "Expenses",
             subtitle = "Manage subscriptions and bills",
             onClick = onNavigateToRecurring
         )

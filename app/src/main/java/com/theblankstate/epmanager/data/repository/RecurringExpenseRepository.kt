@@ -39,6 +39,10 @@ class RecurringExpenseRepository @Inject constructor(
         recurringExpenseDao.setActiveStatus(id, isActive)
     }
     
+    suspend fun updateNextDueDate(id: String, nextDueDate: Long) {
+        recurringExpenseDao.updateDueDate(id, nextDueDate, System.currentTimeMillis())
+    }
+    
     /**
      * Get recurring expenses with their categories for display
      */

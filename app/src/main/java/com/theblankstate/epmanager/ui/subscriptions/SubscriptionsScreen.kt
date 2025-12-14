@@ -212,8 +212,8 @@ fun SubscriptionsScreen(
             existingSubscription = uiState.editingSubscription,
             categories = uiState.categories,
             onDismiss = { viewModel.hideDialog() },
-            onConfirm = { name, amount, categoryId, frequency, autoAdd ->
-                viewModel.saveSubscription(name, amount, categoryId, frequency, autoAdd)
+            onConfirm = { name, amount, categoryId, frequency, scheduleDay, autoAdd ->
+                viewModel.saveSubscription(name, amount, categoryId, frequency, scheduleDay, autoAdd)
             }
         )
     }
@@ -384,9 +384,15 @@ private fun SubscriptionItem(
                         color = Error
                     )
                     Text(
-                        text = formatDate(subscription.nextDueDate),
+                        text = "Next: ${formatDate(subscription.nextDueDate)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Show billing day based on frequency
+                    Text(
+                        text = getBillingDayText(subscription.frequency, subscription.scheduleDay),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                     )
                 }
             }
@@ -473,15 +479,17 @@ private fun AddEditSubscriptionSheet(
     existingSubscription: RecurringExpense?,
     categories: List<Category>,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, autoAdd: Boolean) -> Unit
+    onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, scheduleDay: Int, autoAdd: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(existingSubscription?.name ?: "") }
     var amount by remember { mutableStateOf(existingSubscription?.amount?.toString() ?: "") }
     var selectedCategory by remember { mutableStateOf<Category?>(categories.find { it.id == existingSubscription?.categoryId }) }
     var selectedFrequency by remember { mutableStateOf(existingSubscription?.frequency ?: RecurringFrequency.MONTHLY) }
+    var scheduleDay by remember { mutableIntStateOf(existingSubscription?.scheduleDay ?: 1) }
     var autoAdd by remember { mutableStateOf(existingSubscription?.autoAdd ?: false) }
     var expandedCategory by remember { mutableStateOf(false) }
     var expandedFrequency by remember { mutableStateOf(false) }
+    var expandedScheduleDay by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     // Common subscription presets
@@ -585,6 +593,78 @@ private fun AddEditSubscriptionSheet(
                 }
             }
             
+            // Billing Day Picker (based on frequency)
+            when (selectedFrequency) {
+                RecurringFrequency.WEEKLY -> {
+                    val days = listOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+                    ExposedDropdownMenuBox(
+                        expanded = expandedScheduleDay,
+                        onExpandedChange = { expandedScheduleDay = it }
+                    ) {
+                        OutlinedTextField(
+                            value = days.getOrElse(scheduleDay - 1) { "Monday" },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Billing Day") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedScheduleDay) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = InputFieldShape
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = expandedScheduleDay,
+                            onDismissRequest = { expandedScheduleDay = false }
+                        ) {
+                            days.forEachIndexed { index, day ->
+                                DropdownMenuItem(
+                                    text = { Text(day) },
+                                    onClick = {
+                                        scheduleDay = index + 1
+                                        expandedScheduleDay = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                RecurringFrequency.MONTHLY, RecurringFrequency.QUARTERLY, RecurringFrequency.YEARLY -> {
+                    ExposedDropdownMenuBox(
+                        expanded = expandedScheduleDay,
+                        onExpandedChange = { expandedScheduleDay = it }
+                    ) {
+                        OutlinedTextField(
+                            value = getOrdinalDay(scheduleDay),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Billing Date") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedScheduleDay) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = InputFieldShape
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = expandedScheduleDay,
+                            onDismissRequest = { expandedScheduleDay = false }
+                        ) {
+                            (1..28).forEach { day ->
+                                DropdownMenuItem(
+                                    text = { Text(getOrdinalDay(day)) },
+                                    onClick = {
+                                        scheduleDay = day
+                                        expandedScheduleDay = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> { }
+            }
+            
             // Category Dropdown
             ExposedDropdownMenuBox(
                 expanded = expandedCategory,
@@ -677,7 +757,7 @@ private fun AddEditSubscriptionSheet(
                     onClick = {
                         val amountValue = amount.toDoubleOrNull()
                         if (name.isNotBlank() && amountValue != null && amountValue > 0) {
-                            onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, autoAdd)
+                            onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, scheduleDay, autoAdd)
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -693,4 +773,37 @@ private fun AddEditSubscriptionSheet(
 
 private fun formatDate(timestamp: Long): String {
     return SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+}
+
+private fun getOrdinalDay(day: Int): String {
+    val suffix = when {
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
+    }
+    return "$day$suffix of each month"
+}
+
+private fun getBillingDayText(frequency: RecurringFrequency, scheduleDay: Int): String {
+    val days = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    return when (frequency) {
+        RecurringFrequency.DAILY -> "Every day"
+        RecurringFrequency.WEEKLY -> "Every ${days.getOrElse(scheduleDay - 1) { "Mon" }}"
+        RecurringFrequency.BIWEEKLY -> "Every 2nd ${days.getOrElse(scheduleDay - 1) { "Mon" }}"
+        RecurringFrequency.MONTHLY -> "Every ${scheduleDay}${getOrdinalSuffix(scheduleDay)}"
+        RecurringFrequency.QUARTERLY -> "Every ${scheduleDay}${getOrdinalSuffix(scheduleDay)} (quarterly)"
+        RecurringFrequency.YEARLY -> "Yearly"
+    }
+}
+
+private fun getOrdinalSuffix(day: Int): String {
+    return when {
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
+    }
 }

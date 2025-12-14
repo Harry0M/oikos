@@ -40,6 +40,7 @@ data class RecurringExpense(
     val categoryId: String?,
     val accountId: String?,
     val frequency: RecurringFrequency,
+    val scheduleDay: Int = 1, // Day of recurrence: 1-31 for monthly, 1-7 for weekly (1=Sunday), 1-365 for yearly
     val startDate: Long,
     val endDate: Long? = null, // null = indefinite
     val nextDueDate: Long,

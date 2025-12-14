@@ -35,7 +35,7 @@ fun RecurringScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = "Recurring Expenses",
+                        text = "Expenses",
                         fontWeight = FontWeight.Bold
                     ) 
                 },
@@ -97,7 +97,7 @@ fun RecurringScreen(
                             )
                             Spacer(modifier = Modifier.width(Spacing.sm))
                             Text(
-                                text = "Recurring expenses are automatically added on their due date when auto-add is enabled.",
+                                text = "Scheduled expenses are automatically added on their due date when auto-add is enabled.",
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -119,7 +119,7 @@ fun RecurringScreen(
                                 )
                                 Spacer(modifier = Modifier.height(Spacing.md))
                                 Text(
-                                    text = "No Recurring Expenses",
+                                    text = "No Scheduled Expenses",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -158,8 +158,8 @@ fun RecurringScreen(
         AddRecurringSheet(
             categories = uiState.categories,
             onDismiss = { viewModel.hideAddDialog() },
-            onConfirm = { name, amount, categoryId, frequency, autoAdd ->
-                viewModel.addRecurringExpense(name, amount, categoryId, frequency, autoAdd)
+            onConfirm = { name, amount, categoryId, frequency, scheduleDay, autoAdd ->
+                viewModel.addRecurringExpense(name, amount, categoryId, frequency, scheduleDay, autoAdd)
             }
         )
     }
@@ -294,7 +294,7 @@ private fun RecurringItem(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Recurring Expense") },
+            title = { Text("Delete Expense") },
             text = { Text("Are you sure you want to delete '${recurring.name}'?") },
             confirmButton = {
                 TextButton(
@@ -320,15 +320,17 @@ private fun RecurringItem(
 private fun AddRecurringSheet(
     categories: List<Category>,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, autoAdd: Boolean) -> Unit
+    onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, scheduleDay: Int, autoAdd: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var selectedFrequency by remember { mutableStateOf(RecurringFrequency.MONTHLY) }
+    var scheduleDay by remember { mutableIntStateOf(1) }
     var autoAdd by remember { mutableStateOf(true) }
     var expandedCategory by remember { mutableStateOf(false) }
     var expandedFrequency by remember { mutableStateOf(false) }
+    var expandedScheduleDay by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     ModalBottomSheet(
@@ -344,7 +346,7 @@ private fun AddRecurringSheet(
         ) {
             // Header
             Text(
-                text = "Add Recurring Expense",
+                text = "Add Expense",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = Spacing.sm)
@@ -440,6 +442,78 @@ private fun AddRecurringSheet(
                 }
             }
             
+            // Schedule Day Picker (based on frequency)
+            when (selectedFrequency) {
+                RecurringFrequency.WEEKLY, RecurringFrequency.BIWEEKLY -> {
+                    val days = listOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+                    ExposedDropdownMenuBox(
+                        expanded = expandedScheduleDay,
+                        onExpandedChange = { expandedScheduleDay = it }
+                    ) {
+                        OutlinedTextField(
+                            value = days.getOrElse(scheduleDay - 1) { "Monday" },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Repeat on") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedScheduleDay) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = InputFieldShape
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = expandedScheduleDay,
+                            onDismissRequest = { expandedScheduleDay = false }
+                        ) {
+                            days.forEachIndexed { index, day ->
+                                DropdownMenuItem(
+                                    text = { Text(day) },
+                                    onClick = {
+                                        scheduleDay = index + 1
+                                        expandedScheduleDay = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                RecurringFrequency.MONTHLY, RecurringFrequency.QUARTERLY -> {
+                    ExposedDropdownMenuBox(
+                        expanded = expandedScheduleDay,
+                        onExpandedChange = { expandedScheduleDay = it }
+                    ) {
+                        OutlinedTextField(
+                            value = getOrdinalDay(scheduleDay),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Day of month") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedScheduleDay) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = InputFieldShape
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = expandedScheduleDay,
+                            onDismissRequest = { expandedScheduleDay = false }
+                        ) {
+                            (1..28).forEach { day ->
+                                DropdownMenuItem(
+                                    text = { Text(getOrdinalDay(day)) },
+                                    onClick = {
+                                        scheduleDay = day
+                                        expandedScheduleDay = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> { /* Daily and Yearly don't need day selection */ }
+            }
+            
             // Auto-add toggle
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -492,7 +566,7 @@ private fun AddRecurringSheet(
                     onClick = {
                         val amountValue = amount.toDoubleOrNull()
                         if (name.isNotBlank() && amountValue != null && amountValue > 0) {
-                            onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, autoAdd)
+                            onConfirm(name, amountValue, selectedCategory?.id, selectedFrequency, scheduleDay, autoAdd)
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -508,4 +582,15 @@ private fun AddRecurringSheet(
 
 private fun formatDate(timestamp: Long): String {
     return SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+}
+
+private fun getOrdinalDay(day: Int): String {
+    val suffix = when {
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
+    }
+    return "$day$suffix of every month"
 }

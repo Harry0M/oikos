@@ -121,9 +121,9 @@ fun GoalsScreen(
         }
     }
     
-    // Add Goal Dialog
+    // Add Goal Sheet
     if (uiState.showAddDialog) {
-        AddGoalDialog(
+        AddGoalSheet(
             onDismiss = { viewModel.hideAddDialog() },
             onConfirm = { name, amount, presetIndex, targetDate ->
                 viewModel.createGoal(name, amount, presetIndex, targetDate)
@@ -279,11 +279,33 @@ private fun GoalCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "${(goal.progress * 100).toInt()}% saved",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(goal.color)
-                )
+                Column {
+                    Text(
+                        text = "${(goal.progress * 100).toInt()}% saved",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(goal.color)
+                    )
+                    // Show target date if set
+                    goal.targetDate?.let { targetDate ->
+                        val daysRemaining = ((targetDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
+                        val dateText = java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+                            .format(java.util.Date(targetDate))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = if (daysRemaining >= 0) MaterialTheme.colorScheme.primary else Error
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (daysRemaining >= 0) "$daysRemaining days left" else "Overdue",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (daysRemaining >= 0) MaterialTheme.colorScheme.primary else Error
+                            )
+                        }
+                    }
+                }
                 
                 Text(
                     text = "${formatCurrency(goal.remaining)} to go",
@@ -407,79 +429,165 @@ private fun EmptyGoalsCard(onAddClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddGoalDialog(
+private fun AddGoalSheet(
     onDismiss: () -> Unit,
     onConfirm: (name: String, amount: Double, presetIndex: Int, targetDate: Long?) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var selectedPreset by remember { mutableIntStateOf(8) } // Default: General
+    var targetDate by remember { mutableStateOf<Long?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
-    AlertDialog(
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
+    )
+    
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("New Savings Goal", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
+        ) {
+            // Header
+            Text(
+                text = "New Savings Goal",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = Spacing.sm)
+            )
+            
+            // Preset selector
+            Text(
+                text = "Choose a theme",
+                style = MaterialTheme.typography.labelMedium
+            )
+            
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                // Preset selector
-                Text(
-                    text = "Choose a theme",
-                    style = MaterialTheme.typography.labelMedium
+                itemsIndexed(GoalPresets.presets) { index, preset ->
+                    FilterChip(
+                        selected = selectedPreset == index,
+                        onClick = { selectedPreset = index },
+                        label = { Text(preset.label) }
+                    )
+                }
+            }
+            
+            // Goal name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Goal Name") },
+                placeholder = { Text("e.g., Trip to Goa") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape
+            )
+            
+            // Target amount
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Target Amount") },
+                prefix = { Text("₹") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = InputFieldShape
+            )
+            
+            // Target date picker
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDatePicker = true }
+            ) {
+                OutlinedTextField(
+                    value = targetDate?.let { 
+                        java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault())
+                            .format(java.util.Date(it))
+                    } ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = false,
+                    label = { Text("Target Completion Date (Optional)") },
+                    placeholder = { Text("Select date") },
+                    trailingIcon = {
+                        Icon(Icons.Filled.CalendarMonth, contentDescription = null)
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = InputFieldShape
                 )
-                
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = ButtonShapePill
                 ) {
-                    itemsIndexed(GoalPresets.presets) { index, preset ->
-                        FilterChip(
-                            selected = selectedPreset == index,
-                            onClick = { selectedPreset = index },
-                            label = { Text(preset.label) }
-                        )
-                    }
+                    Text("Cancel")
                 }
                 
-                // Goal name
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Goal Name") },
-                    placeholder = { Text("e.g., Trip to Goa") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                // Target amount
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Target Amount") },
-                    prefix = { Text("₹") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amountValue = amount.toDoubleOrNull()
-                    if (name.isNotBlank() && amountValue != null && amountValue > 0) {
-                        onConfirm(name, amountValue, selectedPreset, null)
-                    }
-                },
-                enabled = name.isNotBlank() && amount.toDoubleOrNull()?.let { it > 0 } == true
-            ) {
-                Text("Create Goal")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Button(
+                    onClick = {
+                        val amountValue = amount.toDoubleOrNull()
+                        if (name.isNotBlank() && amountValue != null && amountValue > 0) {
+                            onConfirm(name, amountValue, selectedPreset, targetDate)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = name.isNotBlank() && amount.toDoubleOrNull()?.let { it > 0 } == true,
+                    shape = ButtonShapePill
+                ) {
+                    Text("Create Goal")
+                }
             }
         }
-    )
+    }
+    
+    // Date Picker Dialog
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        targetDate = datePickerState.selectedDateMillis
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 @Composable

@@ -70,9 +70,11 @@ class RecurringViewModel @Inject constructor(
         amount: Double,
         categoryId: String?,
         frequency: RecurringFrequency,
+        scheduleDay: Int,
         autoAdd: Boolean
     ) {
         viewModelScope.launch {
+            val nextDueDate = calculateNextDueDate(frequency, scheduleDay)
             val recurring = RecurringExpense(
                 name = name,
                 amount = amount,
@@ -80,13 +82,54 @@ class RecurringViewModel @Inject constructor(
                 categoryId = categoryId,
                 accountId = null,
                 frequency = frequency,
+                scheduleDay = scheduleDay,
                 startDate = System.currentTimeMillis(),
-                nextDueDate = System.currentTimeMillis(),
+                nextDueDate = nextDueDate,
                 autoAdd = autoAdd
             )
             recurringRepository.insertRecurringExpense(recurring)
             hideAddDialog()
         }
+    }
+    
+    private fun calculateNextDueDate(frequency: RecurringFrequency, scheduleDay: Int): Long {
+        val calendar = java.util.Calendar.getInstance()
+        when (frequency) {
+            RecurringFrequency.DAILY -> {
+                // Daily - next occurrence is tomorrow
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            }
+            RecurringFrequency.WEEKLY, RecurringFrequency.BIWEEKLY -> {
+                // Weekly/Biweekly - scheduleDay is day of week (1-7, Sunday=1)
+                val currentDayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+                var daysUntilNext = scheduleDay - currentDayOfWeek
+                if (daysUntilNext <= 0) daysUntilNext += 7
+                if (frequency == RecurringFrequency.BIWEEKLY && daysUntilNext <= 7) {
+                    daysUntilNext += 7
+                }
+                calendar.add(java.util.Calendar.DAY_OF_MONTH, daysUntilNext)
+            }
+            RecurringFrequency.MONTHLY, RecurringFrequency.QUARTERLY -> {
+                // Monthly/Quarterly - scheduleDay is day of month (1-28)
+                val currentDay = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                if (currentDay >= scheduleDay) {
+                    // Move to next month
+                    val monthsToAdd = if (frequency == RecurringFrequency.QUARTERLY) 3 else 1
+                    calendar.add(java.util.Calendar.MONTH, monthsToAdd)
+                }
+                calendar.set(java.util.Calendar.DAY_OF_MONTH, minOf(scheduleDay, calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)))
+            }
+            RecurringFrequency.YEARLY -> {
+                // Yearly - use start date as base, next year
+                calendar.add(java.util.Calendar.YEAR, 1)
+            }
+        }
+        // Set to beginning of day
+        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        calendar.set(java.util.Calendar.MINUTE, 0)
+        calendar.set(java.util.Calendar.SECOND, 0)
+        calendar.set(java.util.Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
     }
     
     fun toggleActive(recurring: RecurringExpense) {

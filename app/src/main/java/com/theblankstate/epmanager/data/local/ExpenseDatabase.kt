@@ -52,7 +52,7 @@ import com.theblankstate.epmanager.data.model.Transaction
         Debt::class,
         DebtPayment::class
     ],
-    version = 12, // Removed FK constraint from Debt
+    version = 13, // Added scheduleDay column to recurring_expenses
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
