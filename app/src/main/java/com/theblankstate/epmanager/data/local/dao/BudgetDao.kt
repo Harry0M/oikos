@@ -30,4 +30,7 @@ interface BudgetDao {
     
     @Query("UPDATE budgets SET isActive = :isActive WHERE id = :id")
     suspend fun setBudgetActive(id: String, isActive: Boolean)
+    
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAllBudgets()
 }

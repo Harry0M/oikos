@@ -37,6 +37,10 @@ class RecurringExpenseRepository @Inject constructor(
         recurringExpenseDao.deleteRecurringExpense(recurringExpense)
     }
     
+    suspend fun deleteAllRecurringExpenses() {
+        recurringExpenseDao.deleteAllRecurringExpenses()
+    }
+    
     suspend fun toggleActive(id: String, isActive: Boolean) {
         recurringExpenseDao.setActiveStatus(id, isActive)
     }

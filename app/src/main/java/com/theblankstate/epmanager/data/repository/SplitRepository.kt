@@ -22,6 +22,8 @@ class SplitRepository @Inject constructor(
     
     suspend fun deleteGroup(group: SplitGroup) = splitDao.deleteGroup(group)
     
+    suspend fun deleteAllGroups() = splitDao.deleteAllGroups()
+    
     // Members
     fun getMembersByGroup(groupId: String): Flow<List<GroupMember>> = 
         splitDao.getMembersByGroup(groupId)

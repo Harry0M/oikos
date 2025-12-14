@@ -185,14 +185,60 @@ class AuthViewModel @Inject constructor(
         }
     }
     
-    fun signOut() {
-        authRepository.signOut()
-        _uiState.update { 
-            it.copy(
-                isLoggedIn = false,
-                user = null,
-                lastSyncTime = null
-            ) 
+    fun signOut(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                // 1. Sync one last time before signing out
+                _uiState.update { it.copy(isLoading = true, isSyncing = true) }
+                syncManager.syncAllData() // Ignore result, try our best
+                
+                // 2. Wipe all local data
+                syncManager.wipeAllLocalData()
+                
+                // 3. Sign out from Firebase
+                authRepository.signOut()
+                
+                _uiState.update { 
+                    it.copy(
+                        isLoggedIn = false,
+                        user = null,
+                        lastSyncTime = null,
+                        isLoading = false,
+                        isSyncing = false
+                    ) 
+                }
+                
+                onComplete()
+            } catch (e: Exception) {
+                // Force sign out even if sync fails
+                authRepository.signOut()
+                _uiState.update { 
+                    it.copy(
+                        isLoggedIn = false,
+                        user = null,
+                        lastSyncTime = null,
+                        isLoading = false,
+                        isSyncing = false
+                    ) 
+                }
+                onComplete()
+            }
+        }
+    }
+    
+    /**
+     * Wipe all local data (without signing out - e.g., manual clear)
+     */
+    fun wipeLocalData() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            syncManager.wipeAllLocalData()
+            _uiState.update { 
+                it.copy(
+                    isLoading = false,
+                    successMessage = "All local data cleared!"
+                ) 
+            }
         }
     }
     

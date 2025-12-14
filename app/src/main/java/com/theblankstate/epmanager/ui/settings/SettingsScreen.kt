@@ -40,6 +40,7 @@ fun SettingsScreen(
 ) {
     val authState by authViewModel.uiState.collectAsState()
     var isDarkMode by remember { mutableStateOf(false) }
+    var showClearDataDialog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -91,11 +92,25 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            text = "Tap to manage account & sync",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
+                        if (authState.isSyncing) {
+                            Text(
+                                text = "Syncing data...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            val lastSync = authState.lastSyncTime
+                            val syncText = if (lastSync != null) {
+                                "Last synced: ${java.text.SimpleDateFormat("MMM dd, HH:mm").format(java.util.Date(lastSync))}"
+                            } else {
+                                "Tap to manage account & sync"
+                            }
+                            Text(
+                                text = syncText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                     
                     Icon(
@@ -244,6 +259,13 @@ fun SettingsScreen(
         SettingsSectionHeader("Data")
         
         SettingsItem(
+            icon = Icons.Filled.Sync,
+            title = "Sync All Data",
+            subtitle = "Manually sync everything to cloud",
+            onClick = { authViewModel.backupEverything() }
+        )
+        
+        SettingsItem(
             icon = Icons.Filled.FileDownload,
             title = "Export Data",
             subtitle = "Export as CSV or PDF",
@@ -253,9 +275,33 @@ fun SettingsScreen(
         SettingsItem(
             icon = Icons.Filled.Delete,
             title = "Clear All Data",
-            subtitle = "Delete all transactions",
-            isDestructive = true
+            subtitle = "Delete all transactions (Local only)",
+            isDestructive = true,
+            onClick = { showClearDataDialog = true } 
         )
+        
+        if (showClearDataDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDataDialog = false },
+                title = { Text("Clear All Data") },
+                text = { Text("Are you sure? This will delete ALL data from this device. If you haven't synced, data will be lost forever.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            authViewModel.wipeLocalData()
+                            showClearDataDialog = false
+                        }
+                    ) {
+                        Text("Clear All", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDataDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
         
         Spacer(modifier = Modifier.height(Spacing.lg))
         

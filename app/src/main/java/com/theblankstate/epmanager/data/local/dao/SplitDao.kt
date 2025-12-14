@@ -100,4 +100,7 @@ interface SplitDao {
     
     @Delete
     suspend fun deleteSettlement(settlement: Settlement)
+    
+    @Query("DELETE FROM split_groups")
+    suspend fun deleteAllGroups()
 }

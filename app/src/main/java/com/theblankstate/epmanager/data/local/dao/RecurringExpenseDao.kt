@@ -43,4 +43,7 @@ interface RecurringExpenseDao {
     
     @Query("UPDATE recurring_expenses SET nextDueDate = :nextDueDate, lastProcessedDate = :processedDate WHERE id = :id")
     suspend fun updateDueDate(id: String, nextDueDate: Long, processedDate: Long)
+    
+    @Query("DELETE FROM recurring_expenses")
+    suspend fun deleteAllRecurringExpenses()
 }

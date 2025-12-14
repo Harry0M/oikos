@@ -224,40 +224,7 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.backupSettingsToCloud() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSyncing,
-                    shape = ButtonShape
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Settings", style = MaterialTheme.typography.labelMedium)
-                }
-                
-                OutlinedButton(
-                    onClick = { viewModel.backupTransactions() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSyncing,
-                    shape = ButtonShape
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Receipt,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Transactions", style = MaterialTheme.typography.labelMedium)
-                }
-            }
+
             
             Spacer(modifier = Modifier.height(Spacing.lg))
             
@@ -287,40 +254,7 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.restoreSettingsFromCloud() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSyncing,
-                    shape = ButtonShape
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Restore,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Settings", style = MaterialTheme.typography.labelMedium)
-                }
-                
-                OutlinedButton(
-                    onClick = { viewModel.restoreTransactions() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !uiState.isSyncing,
-                    shape = ButtonShape
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Transactions", style = MaterialTheme.typography.labelMedium)
-                }
-            }
+
             
             Spacer(modifier = Modifier.height(Spacing.xxl))
             
@@ -379,22 +313,38 @@ fun ProfileScreen(
             },
             title = { Text("Sign Out") },
             text = { 
-                Text("Are you sure you want to sign out? Your local data will remain on this device.") 
+                if (uiState.isLoading) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        Text("Syncing data to cloud and clearing local storage...")
+                    }
+                } else {
+                    Text("Are you sure you want to sign out? \n\nThis will sync your data to the cloud and then CLEAR all data from this device.") 
+                }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.signOut()
-                        showSignOutDialog = false
-                        onSignOut()
+                if (!uiState.isLoading) {
+                    TextButton(
+                        onClick = {
+                            viewModel.signOut(onComplete = {
+                                showSignOutDialog = false
+                                onSignOut()
+                            })
+                        }
+                    ) {
+                        Text("Sign Out", color = MaterialTheme.colorScheme.error)
                     }
-                ) {
-                    Text("Sign Out", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel")
+                if (!uiState.isLoading) {
+                    TextButton(onClick = { showSignOutDialog = false }) {
+                        Text("Cancel")
+                    }
                 }
             }
         )

@@ -39,4 +39,7 @@ interface SavingsGoalDao {
     
     @Query("UPDATE savings_goals SET isCompleted = 1, updatedAt = :updateTime WHERE id = :goalId")
     suspend fun markCompleted(goalId: String, updateTime: Long = System.currentTimeMillis())
+    
+    @Query("DELETE FROM savings_goals")
+    suspend fun deleteAllGoals()
 }

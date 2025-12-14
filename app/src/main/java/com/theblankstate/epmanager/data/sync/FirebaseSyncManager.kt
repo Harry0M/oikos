@@ -26,7 +26,8 @@ class FirebaseSyncManager @Inject constructor(
     private val budgetRepository: BudgetRepository,
     private val recurringExpenseRepository: RecurringExpenseRepository,
     private val savingsGoalRepository: SavingsGoalRepository,
-    private val splitRepository: SplitRepository
+    private val splitRepository: SplitRepository,
+    private val debtRepository: DebtRepository
 ) {
     private val database: FirebaseDatabase = FirebaseDatabase.getInstance()
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -317,6 +318,104 @@ class FirebaseSyncManager @Inject constructor(
         }
     }
     
+    // ========== UNIFIED SYNC (Sync Everything) ==========
+    
+    /**
+     * Syncs ALL data (settings, transactions, debts, etc.) to cloud.
+     * Used for both background sync and manual sync.
+     */
+    suspend fun syncAllData(): Result<Unit> {
+        val userRef = getUserRef() ?: return Result.failure(Exception("Not logged in"))
+        
+        return try {
+            // 1. Backup Settings (Budgets, Recurring, Goals, Categories, Accounts, Splits)
+            val settingsResult = backupSettingsToCloud()
+            if (settingsResult.isFailure) throw settingsResult.exceptionOrNull()!!
+            
+            // 2. Backup Transactions
+            val transactionsResult = backupTransactionsToCloud()
+            if (transactionsResult.isFailure) throw transactionsResult.exceptionOrNull()!!
+            
+            // 3. Backup Debts
+            val debtsResult = backupDebtsToCloud()
+            if (debtsResult.isFailure) throw debtsResult.exceptionOrNull()!!
+            
+            // Update master sync time
+            userRef.child("lastFullSync").setValue(System.currentTimeMillis()).await()
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Wipes ALL local data.
+     * Used on sign out.
+     */
+    suspend fun wipeAllLocalData() {
+        try {
+            transactionRepository.deleteAllTransactions()
+            budgetRepository.deleteAllBudgets()
+            recurringExpenseRepository.deleteAllRecurringExpenses()
+            savingsGoalRepository.deleteAllGoals()
+            // Note: Categories/Accounts usually have defaults re-seeded, but we strictly wipe here.
+            // On re-login or fresh start, defaults initializes again.
+            // But we can't easily wipe them without DAO support.
+            // Assuming repositories have delete methods or we add them. 
+            // For now, focusing on user data.
+            splitRepository.deleteAllGroups() // Logic needed in repo
+            debtRepository.deleteAllDebts()   // Logic needed in repo
+            
+            // Reset "isLinked" on accounts or delete them?
+            // Ideally delete all non-default accounts.
+        } catch (e: Exception) {
+            // Log error but proceed
+        }
+    }
+
+    // ========== DEBT SYNC ==========
+    
+    suspend fun backupDebtsToCloud(): Result<Unit> {
+        val userRef = getUserRef() ?: return Result.failure(Exception("Not logged in"))
+        return try {
+            val debts = debtRepository.getAllDebts().first()
+            val debtsMap = debts.associate { it.id to debtToMap(it) }
+            userRef.child("debts").setValue(debtsMap).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    suspend fun restoreDebtsFromCloud(): Result<Unit> {
+        val userRef = getUserRef() ?: return Result.failure(Exception("Not logged in"))
+        return try {
+            val snapshot = userRef.child("debts").get().await()
+            snapshot.children.forEach { snap ->
+                val map = snap.value as? Map<*, *>
+                if (map != null) {
+                    val debt = mapToDebt(map)
+                    debtRepository.createDebt(debt)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun restoreAllData(): Result<Unit> {
+        return try {
+            restoreSettingsFromCloud()
+            restoreTransactionsFromCloud()
+            restoreDebtsFromCloud()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ========== CONVERSION FUNCTIONS ==========
     
     // Budget
@@ -573,6 +672,7 @@ class FirebaseSyncManager @Inject constructor(
     )
     
     // Account (existing)
+    // Account (existing)
     private fun accountToMap(account: Account): Map<String, Any?> = mapOf(
         "id" to account.id,
         "name" to account.name,
@@ -580,6 +680,10 @@ class FirebaseSyncManager @Inject constructor(
         "icon" to account.icon,
         "color" to account.color,
         "balance" to account.balance,
+        "bankCode" to account.bankCode,
+        "accountNumber" to account.accountNumber,
+        "linkedSenderIds" to account.linkedSenderIds,
+        "isLinked" to account.isLinked,
         "isDefault" to account.isDefault,
         "createdAt" to account.createdAt
     )
@@ -593,7 +697,38 @@ class FirebaseSyncManager @Inject constructor(
         icon = map["icon"] as? String ?: "",
         color = (map["color"] as? Number)?.toLong() ?: 0xFF22C55E,
         balance = (map["balance"] as? Number)?.toDouble() ?: 0.0,
+        bankCode = map["bankCode"] as? String,
+        accountNumber = map["accountNumber"] as? String,
+        linkedSenderIds = map["linkedSenderIds"] as? String ?: "",
+        isLinked = map["isLinked"] as? Boolean ?: false,
         isDefault = map["isDefault"] as? Boolean ?: false,
+        createdAt = (map["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+    )
+
+    // Debt Conversion
+    private fun debtToMap(debt: Debt): Map<String, Any?> = mapOf(
+        "id" to debt.id,
+        "type" to debt.type.name,
+        "personName" to debt.personName,
+        "totalAmount" to debt.totalAmount,
+        "remainingAmount" to debt.remainingAmount,
+        "linkedFriendId" to debt.linkedFriendId,
+        "dueDate" to debt.dueDate,
+        "notes" to debt.notes,
+        "createdAt" to debt.createdAt
+    )
+
+    private fun mapToDebt(map: Map<*, *>): Debt = Debt(
+        id = map["id"] as? String ?: "",
+        type = try {
+            DebtType.valueOf(map["type"] as? String ?: "DEBT")
+        } catch (e: Exception) { DebtType.DEBT },
+        personName = map["personName"] as? String ?: "",
+        totalAmount = (map["totalAmount"] as? Number)?.toDouble() ?: 0.0,
+        remainingAmount = (map["remainingAmount"] as? Number)?.toDouble() ?: 0.0,
+        linkedFriendId = map["linkedFriendId"] as? String,
+        dueDate = (map["dueDate"] as? Number)?.toLong(),
+        notes = map["notes"] as? String,
         createdAt = (map["createdAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
     )
 }

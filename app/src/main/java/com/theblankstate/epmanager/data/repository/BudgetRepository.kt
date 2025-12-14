@@ -43,6 +43,10 @@ class BudgetRepository @Inject constructor(
         budgetDao.deleteBudget(budget)
     }
     
+    suspend fun deleteAllBudgets() {
+        budgetDao.deleteAllBudgets()
+    }
+    
     /**
      * Get budgets with current spending calculations
      */

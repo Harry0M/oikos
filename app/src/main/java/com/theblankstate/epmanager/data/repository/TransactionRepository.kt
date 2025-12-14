@@ -130,6 +130,10 @@ class TransactionRepository @Inject constructor(
         transactionDao.deleteTransactionById(id)
     }
     
+    suspend fun deleteAllTransactions() {
+        transactionDao.deleteAllTransactions()
+    }
+    
     // ========== SYNC OPERATIONS ==========
     
     suspend fun getUnsyncedTransactions(): List<Transaction> = 

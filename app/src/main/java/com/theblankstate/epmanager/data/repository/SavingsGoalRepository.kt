@@ -40,6 +40,10 @@ class SavingsGoalRepository @Inject constructor(
         savingsGoalDao.deleteGoal(goal)
     }
     
+    suspend fun deleteAllGoals() {
+        savingsGoalDao.deleteAllGoals()
+    }
+    
     suspend fun addContribution(goalId: String, amount: Double) {
         val goal = savingsGoalDao.getGoalById(goalId) ?: return
         val newSaved = goal.savedAmount + amount

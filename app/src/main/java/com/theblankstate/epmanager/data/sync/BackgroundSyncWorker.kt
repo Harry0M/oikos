@@ -34,7 +34,7 @@ class BackgroundSyncWorker @AssistedInject constructor(
         }
         
         return try {
-            val result = syncManager.backupSettingsToCloud()
+            val result = syncManager.syncAllData()
             
             result.fold(
                 onSuccess = {

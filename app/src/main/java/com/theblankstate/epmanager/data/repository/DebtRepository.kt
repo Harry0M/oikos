@@ -46,6 +46,10 @@ class DebtRepository @Inject constructor(
         debtDao.deleteDebt(debt)
     }
     
+    suspend fun deleteAllDebts() {
+        debtDao.deleteAllDebts()
+    }
+    
     // Payment operations
     fun getPaymentsForDebt(debtId: String): Flow<List<DebtPayment>> =
         debtDao.getPaymentsForDebt(debtId)
