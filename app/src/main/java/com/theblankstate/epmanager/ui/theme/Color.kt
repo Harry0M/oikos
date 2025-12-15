@@ -31,6 +31,13 @@ val RoseDark = Color(0xFF8B3D38)
 val RoseBg = Color(0xFF1A0F0E)
 
 // ==========================================
+// MONOCHROME ACCENT (Default)
+// ==========================================
+val MonoBlack = Color(0xFF000000)
+val MonoWhite = Color(0xFFFFFFFF)
+val MonoGrayDark = Color(0xFF222222)
+val MonoGrayLight = Color(0xFFEEEEEE)
+// ==========================================
 // SECONDARY ACCENTS
 // ==========================================
 // Blue

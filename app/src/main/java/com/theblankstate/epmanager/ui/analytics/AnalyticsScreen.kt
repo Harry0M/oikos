@@ -82,20 +82,20 @@ fun AnalyticsScreen(
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = ErrorLight
+                            containerColor = MaterialTheme.colorScheme.errorContainer
                         )
                     ) {
                         Column(modifier = Modifier.padding(Spacing.md)) {
                             Text(
                                 text = "Expenses",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = ErrorDark
+                                color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Text(
                                 text = formatCurrency(uiState.totalExpenses),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Error
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
@@ -104,20 +104,20 @@ fun AnalyticsScreen(
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = GreenLight
+                            containerColor = MaterialTheme.colorScheme.primaryContainer // or secondaryContainer
                         )
                     ) {
                         Column(modifier = Modifier.padding(Spacing.md)) {
                             Text(
                                 text = "Income",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = GreenDark
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
                                 text = formatCurrency(uiState.totalIncome),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Green
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }

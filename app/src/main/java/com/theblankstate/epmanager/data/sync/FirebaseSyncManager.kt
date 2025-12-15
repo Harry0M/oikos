@@ -141,11 +141,13 @@ class FirebaseSyncManager @Inject constructor(
             // Restore budgets
             val budgetsSnapshot = userRef.child("budgets").get().await()
             budgetsSnapshot.children.forEach { snapshot ->
-                val map = snapshot.value as? Map<*, *>
-                if (map != null) {
-                    val budget = mapToBudget(map)
-                    budgetRepository.insertBudget(budget)
-                }
+                try {
+                    val map = snapshot.value as? Map<*, *>
+                    if (map != null) {
+                        val budget = mapToBudget(map)
+                        budgetRepository.insertBudget(budget)
+                    }
+                } catch (e: Exception) { /* Skip */ }
             }
             
             // Restore recurring expenses
@@ -288,11 +290,15 @@ class FirebaseSyncManager @Inject constructor(
             var count = 0
             val transactionsSnapshot = userRef.child("transactions").get().await()
             transactionsSnapshot.children.forEach { snapshot ->
-                val map = snapshot.value as? Map<*, *>
-                if (map != null) {
-                    val transaction = mapToTransaction(map)
-                    transactionRepository.insertTransaction(transaction)
-                    count++
+                try {
+                    val map = snapshot.value as? Map<*, *>
+                    if (map != null) {
+                        val transaction = mapToTransaction(map)
+                        transactionRepository.insertTransaction(transaction)
+                        count++
+                    }
+                } catch (e: Exception) {
+                    // Skip invalid transaction
                 }
             }
             Result.success(count)

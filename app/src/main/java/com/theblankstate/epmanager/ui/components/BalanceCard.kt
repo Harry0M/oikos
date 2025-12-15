@@ -71,7 +71,7 @@ fun BalanceCard(
                         text = "+ ${formatCurrency(monthlyIncome)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = GreenLight
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
                 
@@ -95,7 +95,7 @@ fun BalanceCard(
                         text = "- ${formatCurrency(monthlyExpenses)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = ErrorLight
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }

@@ -18,7 +18,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.auth.AuthViewModel
 import com.theblankstate.epmanager.ui.theme.Spacing
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onNavigateToBudget: () -> Unit = {},
@@ -36,10 +36,12 @@ fun SettingsScreen(
     onNavigateToSmsSettings: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
     onNavigateToDebtCredit: () -> Unit = {},
-    authViewModel: AuthViewModel = hiltViewModel()
+    onNavigateToThemeCustomization: () -> Unit = {},
+    authViewModel: AuthViewModel = hiltViewModel(),
+    themeViewModel: com.theblankstate.epmanager.ui.theme.ThemeViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
-    var isDarkMode by remember { mutableStateOf(false) }
+    val themeState by themeViewModel.themeState.collectAsState()
     var showClearDataDialog by remember { mutableStateOf(false) }
     
     Column(
@@ -211,15 +213,101 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(Spacing.lg))
         
         // Preferences Section
-        SettingsSectionHeader("Preferences")
+        // Appearance Section
+        SettingsSectionHeader("Appearance")
         
-        SettingsToggleItem(
-            icon = Icons.Filled.DarkMode,
-            title = "Dark Mode",
-            subtitle = "Use dark theme",
-            checked = isDarkMode,
-            onCheckedChange = { isDarkMode = it }
-        )
+        // Dark Mode Selector
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.xxs),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(modifier = Modifier.padding(Spacing.md)) {
+                Text(
+                    text = "Dark Mode",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    com.theblankstate.epmanager.data.repository.DarkModePreference.entries.forEachIndexed { index, pref ->
+                        SegmentedButton(
+                            selected = themeState.darkModePreference == pref,
+                            onClick = { themeViewModel.setDarkModePreference(pref) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                        ) {
+                            Text(pref.name.lowercase().replaceFirstChar { it.uppercase() })
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Theme Selector
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.xxs),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(modifier = Modifier.padding(Spacing.md)) {
+                Text(
+                    text = "App Theme",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                // Theme Chips
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    FilterChip(
+                        selected = themeState.appTheme == com.theblankstate.epmanager.data.repository.AppTheme.MONOCHROME,
+                        onClick = { themeViewModel.setAppTheme(com.theblankstate.epmanager.data.repository.AppTheme.MONOCHROME) },
+                        label = { Text("Monochrome") }
+                    )
+                    FilterChip(
+                        selected = themeState.appTheme == com.theblankstate.epmanager.data.repository.AppTheme.ROSE,
+                        onClick = { themeViewModel.setAppTheme(com.theblankstate.epmanager.data.repository.AppTheme.ROSE) },
+                        label = { Text("Rose") }
+                    )
+                    FilterChip(
+                        selected = themeState.appTheme == com.theblankstate.epmanager.data.repository.AppTheme.CUSTOM,
+                        onClick = { themeViewModel.setAppTheme(com.theblankstate.epmanager.data.repository.AppTheme.CUSTOM) },
+                        label = { Text("Custom") }
+                    )
+                }
+                
+                // Edit Colors Button (only visible if Custom is selected)
+                if (themeState.appTheme == com.theblankstate.epmanager.data.repository.AppTheme.CUSTOM) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Button(
+                        onClick = onNavigateToThemeCustomization,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Filled.Palette,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text("Customize Colors")
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        SettingsSectionHeader("Preferences")
         
         SettingsItem(
             icon = Icons.Filled.Category,

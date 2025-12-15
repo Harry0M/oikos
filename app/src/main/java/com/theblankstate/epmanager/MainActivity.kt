@@ -48,7 +48,16 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         setContent {
-            EpmanagerTheme {
+            val themeViewModel: com.theblankstate.epmanager.ui.theme.ThemeViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+            val themeState by themeViewModel.themeState.collectAsState()
+            
+            EpmanagerTheme(
+                darkModePreference = themeState.darkModePreference,
+                appTheme = themeState.appTheme,
+                customPrimary = themeState.customPrimary,
+                customSecondary = themeState.customSecondary,
+                customTertiary = themeState.customTertiary
+            ) {
                 ExpenseManagerApp()
             }
         }

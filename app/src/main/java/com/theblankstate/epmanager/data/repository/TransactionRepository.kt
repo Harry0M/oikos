@@ -115,7 +115,12 @@ class TransactionRepository @Inject constructor(
     // ========== WRITE OPERATIONS ==========
     
     suspend fun insertTransaction(transaction: Transaction) {
-        transactionDao.insertTransaction(transaction)
+        try {
+            transactionDao.insertTransaction(transaction)
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            // Log error or ignore if FK violation (e.g. category deleted during sync)
+            e.printStackTrace()
+        }
     }
     
     suspend fun updateTransaction(transaction: Transaction) {

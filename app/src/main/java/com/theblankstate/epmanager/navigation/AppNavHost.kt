@@ -261,6 +261,17 @@ fun AppNavHost(
                 },
                 onNavigateToDebtCredit = {
                     navController.navigate(Screen.DebtCredit.route)
+                },
+                onNavigateToThemeCustomization = {
+                    navController.navigate(Screen.ThemeCustomization.route)
+                }
+            )
+        }
+        
+        composable(Screen.ThemeCustomization.route) {
+            com.theblankstate.epmanager.ui.settings.ThemeCustomizationScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

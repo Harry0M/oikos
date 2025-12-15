@@ -6,6 +6,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -149,22 +150,112 @@ object Elevation {
 }
 
 // ==========================================
+// MONOCHROME SCHEMES
+// ==========================================
+private val MonochromeLightScheme = lightColorScheme(
+    primary = MonoBlack,
+    onPrimary = MonoWhite,
+    primaryContainer = MonoGrayDark,
+    onPrimaryContainer = MonoWhite,
+    secondary = MonoGrayDark,
+    onSecondary = MonoWhite,
+    secondaryContainer = MonoGrayLight,
+    onSecondaryContainer = MonoBlack,
+    tertiary = MonoGrayDark,
+    onTertiary = MonoWhite,
+    background = White,
+    onBackground = Black,
+    surface = White,
+    onSurface = Black,
+    surfaceVariant = Gray100,
+    onSurfaceVariant = Black,
+    outline = Gray400,
+    error = MonoBlack,
+    onError = MonoWhite,
+    errorContainer = MonoGrayLight,
+    onErrorContainer = MonoBlack
+)
+
+private val MonochromeDarkScheme = darkColorScheme(
+    primary = MonoWhite,
+    onPrimary = MonoBlack,
+    primaryContainer = MonoGrayLight,
+    onPrimaryContainer = MonoBlack,
+    secondary = MonoGrayLight,
+    onSecondary = MonoBlack,
+    secondaryContainer = MonoGrayDark,
+    onSecondaryContainer = MonoWhite,
+    tertiary = MonoGrayLight,
+    onTertiary = MonoBlack,
+    background = Black,
+    onBackground = White,
+    surface = Black,
+    onSurface = White,
+    surfaceVariant = Gray900,
+    onSurfaceVariant = White,
+    outline = Gray600,
+    error = MonoWhite,
+    onError = MonoBlack,
+    errorContainer = MonoGrayDark,
+    onErrorContainer = MonoWhite
+)
+
+// ==========================================
 // THEME COMPOSABLE
 // ==========================================
 @Composable
 fun EpmanagerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkModePreference: com.theblankstate.epmanager.data.repository.DarkModePreference = com.theblankstate.epmanager.data.repository.DarkModePreference.SYSTEM,
+    appTheme: com.theblankstate.epmanager.data.repository.AppTheme = com.theblankstate.epmanager.data.repository.AppTheme.MONOCHROME,
+    customPrimary: Int = 0xFF2196F3.toInt(),
+    customSecondary: Int = 0xFF03DAC6.toInt(),
+    customTertiary: Int = 0xFFFFC107.toInt(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when(darkModePreference) {
+        com.theblankstate.epmanager.data.repository.DarkModePreference.SYSTEM -> isSystemInDarkTheme()
+        com.theblankstate.epmanager.data.repository.DarkModePreference.DARK -> true
+        com.theblankstate.epmanager.data.repository.DarkModePreference.LIGHT -> false
+    }
+
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) 
             else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        appTheme == com.theblankstate.epmanager.data.repository.AppTheme.CUSTOM -> {
+            // Generate scheme from custom colors
+            // Note: In a real app we'd use utilities to generate a full tonal palette
+            // For now, we'll map the picked colors to main slots and use defaults for containers
+            if (darkTheme) {
+                darkColorScheme(
+                    primary = Color(customPrimary),
+                    onPrimary = Color.White, // Simplified
+                    secondary = Color(customSecondary),
+                    onSecondary = Color.Black,
+                    tertiary = Color(customTertiary)
+                    // ... other slots would ideally be derived
+                )
+            } else {
+                lightColorScheme(
+                    primary = Color(customPrimary),
+                    onPrimary = Color.White,
+                    secondary = Color(customSecondary),
+                    onSecondary = Color.Black,
+                    tertiary = Color(customTertiary)
+                )
+            }
+        }
+        darkTheme -> when(appTheme) {
+            com.theblankstate.epmanager.data.repository.AppTheme.MONOCHROME -> MonochromeDarkScheme
+            else -> DarkColorScheme // Default to Rose (original Dark)
+        }
+        else -> when(appTheme) {
+            com.theblankstate.epmanager.data.repository.AppTheme.MONOCHROME -> MonochromeLightScheme
+            else -> LightColorScheme // Default to Rose (original Light)
+        }
     }
     
     val view = LocalView.current
