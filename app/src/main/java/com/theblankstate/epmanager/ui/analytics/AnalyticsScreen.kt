@@ -19,9 +19,11 @@ import com.theblankstate.epmanager.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
-    viewModel: AnalyticsViewModel = hiltViewModel()
+    viewModel: AnalyticsViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -92,7 +94,7 @@ fun AnalyticsScreen(
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Text(
-                                text = formatCurrency(uiState.totalExpenses),
+                                text = formatAmount(uiState.totalExpenses, currencySymbol),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.error
@@ -114,7 +116,7 @@ fun AnalyticsScreen(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                text = formatCurrency(uiState.totalIncome),
+                                text = formatAmount(uiState.totalIncome, currencySymbol),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -223,7 +225,7 @@ fun AnalyticsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = formatCurrency(uiState.averageDailySpend),
+                                text = formatAmount(uiState.averageDailySpend, currencySymbol),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -262,7 +264,7 @@ fun AnalyticsScreen(
                     items = uiState.categorySpending,
                     key = { it.category.id }
                 ) { spending ->
-                    CategorySpendingItem(spending = spending)
+                    CategorySpendingItem(spending = spending, currencySymbol = currencySymbol)
                 }
             }
             
@@ -309,7 +311,8 @@ fun AnalyticsScreen(
 
 @Composable
 private fun CategorySpendingItem(
-    spending: CategorySpending
+    spending: CategorySpending,
+    currencySymbol: String
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -349,7 +352,7 @@ private fun CategorySpendingItem(
             Spacer(modifier = Modifier.width(Spacing.md))
             
             Text(
-                text = formatCurrency(spending.amount),
+                text = formatAmount(spending.amount, currencySymbol),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(spending.category.color)

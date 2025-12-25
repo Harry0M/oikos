@@ -25,7 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Debt
 import com.theblankstate.epmanager.data.model.DebtType
 import com.theblankstate.epmanager.data.model.Friend
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -35,9 +35,11 @@ import java.util.*
 fun DebtScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: (String) -> Unit,
-    viewModel: DebtViewModel = hiltViewModel()
+    viewModel: DebtViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     var selectedTab by remember { mutableIntStateOf(0) }
     
     Scaffold(
@@ -88,6 +90,7 @@ fun DebtScreen(
                     amount = uiState.totalDebtOwed,
                     color = Error,
                     icon = Icons.Filled.ArrowUpward,
+                    currencySymbol = currencySymbol,
                     modifier = Modifier.weight(1f)
                 )
                 SummaryCard(
@@ -95,6 +98,7 @@ fun DebtScreen(
                     amount = uiState.totalCreditOwed,
                     color = Green,
                     icon = Icons.Filled.ArrowDownward,
+                    currencySymbol = currencySymbol,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -130,6 +134,7 @@ fun DebtScreen(
                     items(items, key = { it.id }) { debt ->
                         DebtItem(
                             debt = debt,
+                            currencySymbol = currencySymbol,
                             onClick = { viewModel.showDebtDetail(debt) }
                         )
                     }
@@ -142,6 +147,7 @@ fun DebtScreen(
     if (uiState.showAddSheet) {
         AddDebtSheet(
             friends = uiState.friends,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideAddSheet() },
             onConfirm = { type, name, amount, dueDate, friendId, notes ->
                 viewModel.addDebt(type, name, amount, dueDate, friendId, notes)
@@ -154,6 +160,7 @@ fun DebtScreen(
         DebtDetailSheet(
             debt = uiState.selectedDebt!!,
             payments = uiState.selectedDebtPayments,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideDetailSheet() },
             onAddPayment = { viewModel.showPaymentSheet() },
             onSettle = { viewModel.settleDebt() },
@@ -166,6 +173,7 @@ fun DebtScreen(
     if (uiState.showPaymentSheet && uiState.selectedDebt != null) {
         AddPaymentSheet(
             debt = uiState.selectedDebt!!,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hidePaymentSheet() },
             onConfirm = { amount, note ->
                 viewModel.addPayment(amount, null, note)
@@ -180,6 +188,7 @@ private fun SummaryCard(
     amount: Double,
     color: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    currencySymbol: String,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -207,7 +216,7 @@ private fun SummaryCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = formatCurrency(amount),
+                text = formatAmount(amount, currencySymbol),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = color
@@ -219,6 +228,7 @@ private fun SummaryCard(
 @Composable
 private fun DebtItem(
     debt: Debt,
+    currencySymbol: String,
     onClick: () -> Unit
 ) {
     val color = if (debt.type == DebtType.DEBT) Error else Green
@@ -284,13 +294,13 @@ private fun DebtItem(
                 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatCurrency(debt.remainingAmount),
+                        text = formatAmount(debt.remainingAmount, currencySymbol),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = color
                     )
                     Text(
-                        text = "of ${formatCurrency(debt.totalAmount)}",
+                        text = "of ${formatAmount(debt.totalAmount, currencySymbol)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -344,6 +354,7 @@ private fun EmptyState(
 @Composable
 private fun AddDebtSheet(
     friends: List<Friend>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (type: DebtType, name: String, amount: Double, dueDate: Long?, friendId: String?, notes: String?) -> Unit
 ) {
@@ -439,7 +450,7 @@ private fun AddDebtSheet(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Amount") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -542,6 +553,7 @@ private fun AddDebtSheet(
 private fun DebtDetailSheet(
     debt: Debt,
     payments: List<com.theblankstate.epmanager.data.model.DebtPayment>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onAddPayment: () -> Unit,
     onSettle: () -> Unit,
@@ -613,7 +625,7 @@ private fun DebtDetailSheet(
                     ) {
                         Text("Remaining", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            formatCurrency(debt.remainingAmount),
+                            formatAmount(debt.remainingAmount, currencySymbol),
                             fontWeight = FontWeight.Bold,
                             color = color
                         )
@@ -623,14 +635,14 @@ private fun DebtDetailSheet(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Paid", style = MaterialTheme.typography.bodyMedium)
-                        Text(formatCurrency(debt.paidAmount))
+                        Text(formatAmount(debt.paidAmount, currencySymbol))
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Total", style = MaterialTheme.typography.bodyMedium)
-                        Text(formatCurrency(debt.totalAmount))
+                        Text(formatAmount(debt.totalAmount, currencySymbol))
                     }
                     Spacer(modifier = Modifier.height(Spacing.sm))
                     LinearProgressIndicator(
@@ -675,7 +687,7 @@ private fun DebtDetailSheet(
                     ) {
                         Column {
                             Text(
-                                text = formatCurrency(payment.amount),
+                                text = formatAmount(payment.amount, currencySymbol),
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
@@ -742,6 +754,7 @@ private fun DebtDetailSheet(
 @Composable
 private fun AddPaymentSheet(
     debt: Debt,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (amount: Double, note: String?) -> Unit
 ) {
@@ -767,7 +780,7 @@ private fun AddPaymentSheet(
             )
             
             Text(
-                text = "Remaining: ${formatCurrency(debt.remainingAmount)}",
+                text = "Remaining: ${formatAmount(debt.remainingAmount, currencySymbol)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -786,7 +799,7 @@ private fun AddPaymentSheet(
                     val quickAmount = quickAmounts[index]
                     SuggestionChip(
                         onClick = { amount = quickAmount.toLong().toString() },
-                        label = { Text(formatCurrency(quickAmount)) }
+                        label = { Text(formatAmount(quickAmount, currencySymbol)) }
                     )
                 }
             }
@@ -795,7 +808,7 @@ private fun AddPaymentSheet(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Amount") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),

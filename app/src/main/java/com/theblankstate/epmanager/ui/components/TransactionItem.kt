@@ -30,6 +30,7 @@ fun TransactionItem(
     transaction: Transaction,
     categoryName: String = "Unknown",
     categoryColor: Long = 0xFF9CA3AF,
+    currencySymbol: String = "₹",
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -120,7 +121,7 @@ fun TransactionItem(
             
             // Amount
             Text(
-                text = "$amountPrefix${formatCurrency(transaction.amount)}",
+                text = "$amountPrefix${formatAmount(transaction.amount, currencySymbol)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = amountColor

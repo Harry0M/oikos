@@ -24,7 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.TransactionType
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -34,9 +34,11 @@ import java.util.*
 fun TransactionDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEdit: () -> Unit = {},
-    viewModel: TransactionDetailViewModel = hiltViewModel()
+    viewModel: TransactionDetailViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
     
@@ -194,7 +196,7 @@ fun TransactionDetailScreen(
                             
                             // Amount
                             Text(
-                                text = "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${formatCurrency(transaction.amount)}",
+                                text = "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${formatAmount(transaction.amount, currencySymbol)}",
                                 style = MaterialTheme.typography.displaySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = if (transaction.type == TransactionType.EXPENSE) Error else Success

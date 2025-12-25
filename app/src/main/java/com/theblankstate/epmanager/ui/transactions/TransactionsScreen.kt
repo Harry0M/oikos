@@ -25,9 +25,11 @@ fun TransactionsScreen(
     onNavigateToAddTransaction: () -> Unit,
     onNavigateBack: () -> Unit,
     onNavigateToTransactionDetail: (String) -> Unit = {},
-    viewModel: TransactionsViewModel = hiltViewModel()
+    viewModel: TransactionsViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         floatingActionButton = {
@@ -112,6 +114,7 @@ fun TransactionsScreen(
                             transaction = transactionWithCategory.transaction,
                             categoryName = transactionWithCategory.categoryName,
                             categoryColor = transactionWithCategory.categoryColor,
+                            currencySymbol = currencySymbol,
                             onClick = { onNavigateToTransactionDetail(transactionWithCategory.transaction.id) }
                         )
                     }

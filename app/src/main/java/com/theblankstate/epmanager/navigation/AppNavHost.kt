@@ -10,9 +10,7 @@ import androidx.navigation.navArgument
 import com.theblankstate.epmanager.ui.add.AddTransactionScreen
 import com.theblankstate.epmanager.ui.ai.AIInsightsScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsScreen
-import com.theblankstate.epmanager.ui.auth.LoginScreen
 import com.theblankstate.epmanager.ui.auth.ProfileScreen
-import com.theblankstate.epmanager.ui.auth.SignUpScreen
 import com.theblankstate.epmanager.ui.budget.BudgetScreen
 import com.theblankstate.epmanager.ui.categories.CategoriesScreen
 import com.theblankstate.epmanager.ui.accounts.AccountsScreen
@@ -22,6 +20,7 @@ import com.theblankstate.epmanager.ui.friends.FriendsScreen
 import com.theblankstate.epmanager.ui.goals.GoalsScreen
 import com.theblankstate.epmanager.ui.home.HomeScreen
 import com.theblankstate.epmanager.ui.notifications.NotificationSettingsScreen
+import com.theblankstate.epmanager.ui.onboarding.OnboardingScreen
 import com.theblankstate.epmanager.ui.recurring.RecurringScreen
 import com.theblankstate.epmanager.ui.settings.SettingsScreen
 import com.theblankstate.epmanager.ui.sms.SmsSettingsScreen
@@ -30,14 +29,18 @@ import com.theblankstate.epmanager.ui.subscriptions.SubscriptionsScreen
 import com.theblankstate.epmanager.ui.transactions.TransactionsScreen
 import com.theblankstate.epmanager.ui.transactions.TransactionDetailScreen
 
+
 @Composable
 fun AppNavHost(
     navController: NavHostController,
+    hasCompletedOnboarding: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
+    
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(Screen.Home.route) {
@@ -235,9 +238,6 @@ fun AppNavHost(
                 onNavigateToAIInsights = {
                     navController.navigate(Screen.AIInsights.route)
                 },
-                onNavigateToLogin = {
-                    navController.navigate(Screen.Login.route)
-                },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
                 },
@@ -338,27 +338,12 @@ fun AppNavHost(
         }
         
         // Auth screens
-        composable(Screen.Login.route) {
-            LoginScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToSignUp = {
-                    navController.navigate(Screen.SignUp.route)
-                },
-                onLoginSuccess = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(Screen.SignUp.route) {
-            SignUpScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onSignUpSuccess = {
-                    navController.popBackStack(Screen.Settings.route, inclusive = false)
+        composable(Screen.Onboarding.route) {
+            OnboardingScreen(
+                onOnboardingComplete = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
                 }
             )
         }

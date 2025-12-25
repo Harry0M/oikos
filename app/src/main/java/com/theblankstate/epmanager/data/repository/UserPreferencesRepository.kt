@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import com.theblankstate.epmanager.data.model.CurrencyProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -33,9 +35,14 @@ class UserPreferencesRepository @Inject constructor(
         val APP_THEME = stringPreferencesKey("app_theme")
         
         // Custom Colors (ARGB Ints)
-        val CUSTOM_PRIMARY = androidx.datastore.preferences.core.intPreferencesKey("custom_primary")
-        val CUSTOM_SECONDARY = androidx.datastore.preferences.core.intPreferencesKey("custom_secondary")
-        val CUSTOM_TERTIARY = androidx.datastore.preferences.core.intPreferencesKey("custom_tertiary")
+        val CUSTOM_PRIMARY = intPreferencesKey("custom_primary")
+        val CUSTOM_SECONDARY = intPreferencesKey("custom_secondary")
+        val CUSTOM_TERTIARY = intPreferencesKey("custom_tertiary")
+        
+        // Onboarding
+        val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
+        val SELECTED_CURRENCY_CODE = stringPreferencesKey("selected_currency_code")
+        val HAS_CURRENCY_BEEN_SET = booleanPreferencesKey("has_currency_been_set")
     }
 
     // Default Custom Colors (e.g., a nice Blue as fallback)
@@ -53,13 +60,14 @@ class UserPreferencesRepository @Inject constructor(
             }
         }
 
+    // Default theme is now ROSE
     val appTheme: Flow<AppTheme> = dataStore.data
         .map { preferences ->
-            val themeName = preferences[PreferencesKeys.APP_THEME] ?: AppTheme.MONOCHROME.name
+            val themeName = preferences[PreferencesKeys.APP_THEME] ?: AppTheme.ROSE.name
             try {
                 AppTheme.valueOf(themeName)
             } catch (e: Exception) {
-                AppTheme.MONOCHROME
+                AppTheme.ROSE
             }
         }
 
@@ -70,6 +78,29 @@ class UserPreferencesRepository @Inject constructor(
                 preferences[PreferencesKeys.CUSTOM_SECONDARY] ?: defaultSecondary,
                 preferences[PreferencesKeys.CUSTOM_TERTIARY] ?: defaultTertiary
             )
+        }
+
+    // Onboarding status
+    val hasCompletedOnboarding: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.HAS_COMPLETED_ONBOARDING] ?: false
+        }
+
+    // Selected currency code (default INR for backwards compatibility)
+    val selectedCurrencyCode: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.SELECTED_CURRENCY_CODE] ?: "INR"
+        }
+
+    // Currency symbol helper
+    val currencySymbol: Flow<String> = selectedCurrencyCode.map { code ->
+        CurrencyProvider.getSymbol(code)
+    }
+
+    // Check if currency has ever been explicitly set
+    val hasCurrencyBeenSet: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.HAS_CURRENCY_BEEN_SET] ?: false
         }
 
     suspend fun setDarkModePreference(preference: DarkModePreference) {
@@ -91,4 +122,28 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.CUSTOM_TERTIARY] = tertiary
         }
     }
+
+    suspend fun setCurrency(currencyCode: String) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SELECTED_CURRENCY_CODE] = currencyCode
+            preferences[PreferencesKeys.HAS_CURRENCY_BEEN_SET] = true
+        }
+    }
+
+    /**
+     * Mark currency as set without changing the currency code.
+     * Used for migrating existing users who already have data.
+     */
+    suspend fun markCurrencyAsSet() {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HAS_CURRENCY_BEEN_SET] = true
+        }
+    }
+
+    suspend fun completeOnboarding() {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HAS_COMPLETED_ONBOARDING] = true
+        }
+    }
 }
+

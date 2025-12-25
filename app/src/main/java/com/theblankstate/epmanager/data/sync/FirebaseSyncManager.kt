@@ -27,7 +27,8 @@ class FirebaseSyncManager @Inject constructor(
     private val recurringExpenseRepository: RecurringExpenseRepository,
     private val savingsGoalRepository: SavingsGoalRepository,
     private val splitRepository: SplitRepository,
-    private val debtRepository: DebtRepository
+    private val debtRepository: DebtRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) {
     private val database: FirebaseDatabase = FirebaseDatabase.getInstance()
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -40,6 +41,38 @@ class FirebaseSyncManager @Inject constructor(
     
     private fun getUserRef(): DatabaseReference? {
         return userId?.let { database.reference.child("users").child(it) }
+    }
+    
+    // ========== USER PREFERENCES (Currency) ==========
+    
+    /**
+     * Backup user's currency preference to Firebase.
+     * Called when user sets their currency.
+     */
+    suspend fun backupCurrencyToCloud(currencyCode: String): Result<Unit> {
+        val userRef = getUserRef() ?: return Result.failure(Exception("Not logged in"))
+        
+        return try {
+            userRef.child("preferences").child("currencyCode").setValue(currencyCode).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Restore user's currency preference from Firebase.
+     * Returns the currency code if found, null otherwise.
+     */
+    suspend fun restoreCurrencyFromCloud(): String? {
+        val userRef = getUserRef() ?: return null
+        
+        return try {
+            val snapshot = userRef.child("preferences").child("currencyCode").get().await()
+            snapshot.getValue(String::class.java)
+        } catch (e: Exception) {
+            null
+        }
     }
     
     // ========== AUTO-SYNC (Settings Data) ==========
@@ -334,6 +367,12 @@ class FirebaseSyncManager @Inject constructor(
         val userRef = getUserRef() ?: return Result.failure(Exception("Not logged in"))
         
         return try {
+            // 0. Backup Currency preference
+            val currencyCode = userPreferencesRepository.selectedCurrencyCode.first()
+            if (currencyCode.isNotEmpty()) {
+                backupCurrencyToCloud(currencyCode)
+            }
+            
             // 1. Backup Settings (Budgets, Recurring, Goals, Categories, Accounts, Splits)
             val settingsResult = backupSettingsToCloud()
             if (settingsResult.isFailure) throw settingsResult.exceptionOrNull()!!
@@ -413,6 +452,12 @@ class FirebaseSyncManager @Inject constructor(
 
     suspend fun restoreAllData(): Result<Unit> {
         return try {
+            // Restore currency preference first
+            val cloudCurrency = restoreCurrencyFromCloud()
+            if (cloudCurrency != null) {
+                userPreferencesRepository.setCurrency(cloudCurrency)
+            }
+            
             restoreSettingsFromCloud()
             restoreTransactionsFromCloud()
             restoreDebtsFromCloud()

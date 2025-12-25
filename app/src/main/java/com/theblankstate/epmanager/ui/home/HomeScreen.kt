@@ -95,9 +95,11 @@ fun HomeScreen(
     onNavigateToFriends: () -> Unit = {},
     onNavigateToCategories: () -> Unit = {},
     onNavigateToHistory: (String, String) -> Unit = { _, _ -> },
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     val context = LocalContext.current
     val lazyListState = rememberLazyListState()
     
@@ -196,7 +198,8 @@ fun HomeScreen(
                     BalanceCard(
                         totalBalance = uiState.totalBalance,
                         monthlyIncome = uiState.monthlyIncome,
-                        monthlyExpenses = uiState.monthlyExpenses
+                        monthlyExpenses = uiState.monthlyExpenses,
+                        currencySymbol = currencySymbol
                     )
                 }
                 
@@ -208,7 +211,7 @@ fun HomeScreen(
                     ) {
                         StatCard(
                             title = "Today",
-                            value = formatCurrency(uiState.todaySpending),
+                            value = formatAmount(uiState.todaySpending, currencySymbol),
                             subtitle = "spent",
                             modifier = Modifier.weight(1f)
                         )
@@ -254,6 +257,7 @@ fun HomeScreen(
                             transaction = transactionWithCategory.transaction,
                             categoryName = transactionWithCategory.categoryName,
                             categoryColor = transactionWithCategory.categoryColor,
+                            currencySymbol = currencySymbol,
                             onClick = { onNavigateToTransactionDetail(transactionWithCategory.transaction.id) }
                         )
                     }
@@ -369,6 +373,7 @@ fun HomeScreen(
     uiState.selectedDue?.let { due ->
         UpcomingDueActionSheet(
             due = due,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.dismissDueSheet() },
             onPayNow = { amount, note ->
                 when (due) {
@@ -674,6 +679,7 @@ private fun UpcomingDueItem(
 @Composable
 private fun UpcomingDueActionSheet(
     due: UpcomingDue,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onPayNow: (Double, String?) -> Unit,
     onViewHistory: () -> Unit
@@ -743,7 +749,7 @@ private fun UpcomingDueActionSheet(
                     value = paymentAmount,
                     onValueChange = { paymentAmount = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Payment Amount") },
-                    prefix = { Text("₹") },
+                    prefix = { Text(currencySymbol) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = InputFieldShape

@@ -23,6 +23,7 @@ fun BalanceCard(
     totalBalance: Double,
     monthlyIncome: Double,
     monthlyExpenses: Double,
+    currencySymbol: String = "₹",
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -47,7 +48,7 @@ fun BalanceCard(
             Spacer(modifier = Modifier.height(Spacing.xs))
             
             Text(
-                text = formatCurrency(totalBalance),
+                text = formatAmount(totalBalance, currencySymbol),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onPrimary
@@ -68,7 +69,7 @@ fun BalanceCard(
                     )
                     Spacer(modifier = Modifier.height(Spacing.xxs))
                     Text(
-                        text = "+ ${formatCurrency(monthlyIncome)}",
+                        text = "+ ${formatAmount(monthlyIncome, currencySymbol)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -92,7 +93,7 @@ fun BalanceCard(
                     )
                     Spacer(modifier = Modifier.height(Spacing.xxs))
                     Text(
-                        text = "- ${formatCurrency(monthlyExpenses)}",
+                        text = "- ${formatAmount(monthlyExpenses, currencySymbol)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimary
@@ -147,10 +148,21 @@ fun StatCard(
 }
 
 /**
- * Format amount as currency
+ * Format amount as currency (legacy, for backwards compatibility)
  */
 fun formatCurrency(amount: Double, currencyCode: String = "INR"): String {
     val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     format.currency = Currency.getInstance(currencyCode)
     return format.format(amount)
+}
+
+/**
+ * Format amount with a custom currency symbol
+ */
+fun formatAmount(amount: Double, currencySymbol: String = "₹"): String {
+    return if (amount >= 0) {
+        "$currencySymbol${String.format("%,.0f", amount)}"
+    } else {
+        "-$currencySymbol${String.format("%,.0f", kotlin.math.abs(amount))}"
+    }
 }

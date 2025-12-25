@@ -76,6 +76,10 @@ fun ExpenseManagerApp() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
+    // Get onboarding status from preferences
+    val userPreferencesViewModel: com.theblankstate.epmanager.ui.onboarding.OnboardingViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val hasCompletedOnboarding by userPreferencesViewModel.hasCompletedOnboarding.collectAsState(initial = null)
+    
     // Permission states
     var hasSmsPermission by remember { 
         mutableStateOf(SmsPermissionManager.hasAllPermissions(context)) 
@@ -95,17 +99,17 @@ fun ExpenseManagerApp() {
         }
     }
     
-    // Check and request permissions on first launch
-    LaunchedEffect(Unit) {
-        if (!hasSmsPermission) {
+    // Check and request permissions on first launch (only if onboarding completed)
+    LaunchedEffect(hasCompletedOnboarding) {
+        if (hasCompletedOnboarding == true && !hasSmsPermission) {
             // Show dialog first, then request
             showPermissionDialog = true
         }
     }
     
-    // Show bottom bar on main sections, including Transactions
-    val showBottomBar = remember(currentRoute) {
-        currentRoute in listOf(
+    // Show bottom bar on main sections, but not during onboarding
+    val showBottomBar = remember(currentRoute, hasCompletedOnboarding) {
+        hasCompletedOnboarding == true && currentRoute in listOf(
             Screen.Home.route,
             Screen.Budget.route,
             Screen.Analytics.route,
@@ -114,8 +118,8 @@ fun ExpenseManagerApp() {
         )
     }
     
-    // SMS Permission Dialog
-    if (showPermissionDialog && !hasSmsPermission) {
+    // SMS Permission Dialog (only show after onboarding)
+    if (showPermissionDialog && !hasSmsPermission && hasCompletedOnboarding == true) {
         SmsPermissionDialog(
             onConfirm = {
                 showPermissionDialog = false
@@ -133,6 +137,15 @@ fun ExpenseManagerApp() {
                 showPermissionDialog = false
             }
         )
+    }
+    
+    // Wait for onboarding status to load before showing UI
+    val onboardingCompleted = hasCompletedOnboarding
+    if (onboardingCompleted == null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
+        return
     }
     
     Scaffold(
@@ -186,6 +199,7 @@ fun ExpenseManagerApp() {
     ) { innerPadding ->
         AppNavHost(
             navController = navController,
+            hasCompletedOnboarding = onboardingCompleted,
             modifier = Modifier.padding(innerPadding)
         )
     }

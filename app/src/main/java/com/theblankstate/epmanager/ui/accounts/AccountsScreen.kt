@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.AccountType
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 
 // Available icons for account selection
@@ -46,9 +46,11 @@ private val availableColors = listOf(
 @Composable
 fun AccountsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: AccountsViewModel = hiltViewModel()
+    viewModel: AccountsViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         topBar = {
@@ -119,7 +121,7 @@ fun AccountsScreen(
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = formatCurrency(uiState.totalBalance),
+                                text = formatAmount(uiState.totalBalance, currencySymbol),
                                 style = MaterialTheme.typography.headlineLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -151,7 +153,8 @@ fun AccountsScreen(
                             account = account,
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
-                            onUnlink = { viewModel.unlinkAccount(account) }
+                            onUnlink = { viewModel.unlinkAccount(account) },
+                            currencySymbol = currencySymbol
                         )
                     }
                 }
@@ -174,7 +177,8 @@ fun AccountsScreen(
                             account = account,
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
-                            onLink = { viewModel.showLinkDialog(account) }
+                            onLink = { viewModel.showLinkDialog(account) },
+                            currencySymbol = currencySymbol
                         )
                     }
                 }
@@ -333,7 +337,8 @@ private fun LinkedAccountItem(
     account: Account,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onUnlink: () -> Unit
+    onUnlink: () -> Unit,
+    currencySymbol: String
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     
@@ -449,7 +454,7 @@ private fun LinkedAccountItem(
                 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatCurrency(account.balance),
+                        text = formatAmount(account.balance, currencySymbol),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (account.balance >= 0) Success else Error
@@ -518,7 +523,8 @@ private fun UnlinkedAccountItem(
     account: Account,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onLink: () -> Unit
+    onLink: () -> Unit,
+    currencySymbol: String
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     
@@ -592,7 +598,7 @@ private fun UnlinkedAccountItem(
                 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatCurrency(account.balance),
+                        text = formatAmount(account.balance, currencySymbol),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (account.balance >= 0) Success else Error

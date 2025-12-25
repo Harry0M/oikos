@@ -19,7 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.RecurringExpense
 import com.theblankstate.epmanager.data.model.RecurringFrequency
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -29,9 +29,11 @@ import java.util.*
 fun RecurringScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: (String) -> Unit,
-    viewModel: RecurringViewModel = hiltViewModel()
+    viewModel: RecurringViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         topBar = {
@@ -145,7 +147,8 @@ fun RecurringScreen(
                             category = category,
                             onToggleActive = { viewModel.toggleActive(recurring) },
                             onDelete = { viewModel.deleteRecurring(recurring) },
-                            onClick = { onNavigateToHistory(recurring.id) }
+                            onClick = { onNavigateToHistory(recurring.id) },
+                            currencySymbol = currencySymbol
                         )
                     }
                 }
@@ -161,6 +164,7 @@ fun RecurringScreen(
     if (uiState.showAddDialog) {
         AddRecurringSheet(
             categories = uiState.categories,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideAddDialog() },
             onConfirm = { name, amount, categoryId, frequency, scheduleDay, autoAdd ->
                 viewModel.addRecurringExpense(name, amount, categoryId, frequency, scheduleDay, autoAdd)
@@ -175,7 +179,8 @@ private fun RecurringItem(
     category: Category?,
     onToggleActive: () -> Unit,
     onDelete: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    currencySymbol: String
 ) {
 
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -229,7 +234,7 @@ private fun RecurringItem(
                 }
                 
                 Text(
-                    text = formatCurrency(recurring.amount),
+                    text = formatAmount(recurring.amount, currencySymbol),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = Error
@@ -327,6 +332,7 @@ private fun RecurringItem(
 @Composable
 private fun AddRecurringSheet(
     categories: List<Category>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, scheduleDay: Int, autoAdd: Boolean) -> Unit
 ) {
@@ -378,7 +384,7 @@ private fun AddRecurringSheet(
                     amount = it.filter { c -> c.isDigit() || c == '.' }
                 },
                 label = { Text("Amount") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = InputFieldShape

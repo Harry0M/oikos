@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.auth.AuthViewModel
 import com.theblankstate.epmanager.ui.theme.Spacing
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -27,7 +28,6 @@ fun SettingsScreen(
     onNavigateToGoals: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAIInsights: () -> Unit = {},
-    onNavigateToLogin: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToCategories: () -> Unit = {},
     onNavigateToAccounts: () -> Unit = {},
@@ -123,13 +123,78 @@ fun SettingsScreen(
                 }
             }
         } else {
-            // Not logged in - show sign in option
-            SettingsItem(
-                icon = Icons.Filled.Person,
-                title = "Sign In",
-                subtitle = "Sign in to backup your data",
-                onClick = onNavigateToLogin
-            )
+            // Not logged in - show sign-in card
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val coroutineScope = rememberCoroutineScope()
+            var isSigningIn by remember { mutableStateOf(false) }
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xxs)
+                    .clickable(enabled = !isSigningIn) {
+                        coroutineScope.launch {
+                            isSigningIn = true
+                            try {
+                                val activity = context as? android.app.Activity
+                                if (activity != null) {
+                                    val googleSignInHelper = com.theblankstate.epmanager.ui.auth.GoogleSignInHelper(activity)
+                                    googleSignInHelper.signIn()
+                                        .onSuccess { idToken ->
+                                            authViewModel.signInWithGoogle(idToken)
+                                        }
+                                }
+                            } finally {
+                                isSigningIn = false
+                            }
+                        }
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Login,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(Spacing.md))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sign In",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Sync your data across devices",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    if (isSigningIn) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
         
         Spacer(modifier = Modifier.height(Spacing.lg))

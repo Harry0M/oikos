@@ -55,9 +55,11 @@ import java.util.Locale
 fun AddTransactionScreen(
     onNavigateBack: () -> Unit,
     onTransactionSaved: () -> Unit,
-    viewModel: AddTransactionViewModel = hiltViewModel()
+    viewModel: AddTransactionViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
@@ -168,7 +170,8 @@ fun AddTransactionScreen(
             AmountInput(
                 amount = uiState.amount,
                 onAmountChange = viewModel::updateAmount,
-                isExpense = uiState.transactionType == TransactionType.EXPENSE
+                isExpense = uiState.transactionType == TransactionType.EXPENSE,
+                currencySymbol = currencySymbol
             )
             
             Spacer(modifier = Modifier.height(Spacing.xl))
@@ -894,14 +897,15 @@ private fun TransactionTypeToggle(
 private fun AmountInput(
     amount: String,
     onAmountChange: (String) -> Unit,
-    isExpense: Boolean
+    isExpense: Boolean,
+    currencySymbol: String = "₹"
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "₹",
+            text = currencySymbol,
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.BudgetWithSpending
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,9 +30,11 @@ import com.theblankstate.epmanager.ui.theme.*
 fun BudgetScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: (String) -> Unit,
-    viewModel: BudgetViewModel = hiltViewModel()
+    viewModel: BudgetViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         topBar = {
@@ -78,7 +80,8 @@ fun BudgetScreen(
                 item {
                     SummaryHeader(
                         totalBudget = uiState.totalBudget,
-                        totalSpent = uiState.totalSpent
+                        totalSpent = uiState.totalSpent,
+                        currencySymbol = currencySymbol
                     )
                 }
                 
@@ -94,6 +97,7 @@ fun BudgetScreen(
                     ) { budgetWithSpending ->
                         CompactBudgetItem(
                             budgetWithSpending = budgetWithSpending,
+                            currencySymbol = currencySymbol,
                             onDelete = { viewModel.deleteBudget(budgetWithSpending.budget) },
                             onClick = { 
                                 budgetWithSpending.category?.id?.let { onNavigateToHistory(it) }
@@ -151,7 +155,8 @@ fun BudgetScreen(
 @Composable
 private fun SummaryHeader(
     totalBudget: Double,
-    totalSpent: Double
+    totalSpent: Double,
+    currencySymbol: String
 ) {
     val percentage = if (totalBudget > 0) (totalSpent / totalBudget).coerceIn(0.0, 1.0) else 0.0
     val isOverBudget = totalSpent > totalBudget
@@ -175,13 +180,13 @@ private fun SummaryHeader(
             ) {
                 Column {
                     Text(
-                        text = formatCurrency(totalSpent),
+                        text = formatAmount(totalSpent, currencySymbol),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (isOverBudget) Error else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "of ${formatCurrency(totalBudget)} budgeted",
+                        text = "of ${formatAmount(totalBudget, currencySymbol)} budgeted",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -252,6 +257,7 @@ private fun EmptyBudgetState() {
 @Composable
 private fun CompactBudgetItem(
     budgetWithSpending: BudgetWithSpending,
+    currencySymbol: String,
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -345,13 +351,13 @@ private fun CompactBudgetItem(
                 modifier = Modifier.width(80.dp)
             ) {
                 Text(
-                    text = formatCurrency(budgetWithSpending.spent),
+                    text = formatAmount(budgetWithSpending.spent, currencySymbol),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isOverBudget) Error else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "/ ${formatCurrency(budgetWithSpending.budget.amount)}",
+                    text = "/ ${formatAmount(budgetWithSpending.budget.amount, currencySymbol)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

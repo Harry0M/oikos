@@ -26,7 +26,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.*
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -37,9 +37,11 @@ private val groupEmojis = listOf("👥", "🏠", "✈️", "🍕", "🎉", "💼
 @Composable
 fun SplitScreen(
     onNavigateBack: () -> Unit,
-    viewModel: SplitViewModel = hiltViewModel()
+    viewModel: SplitViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     // Show group details if one is selected
     if (uiState.selectedGroup != null) {
@@ -52,7 +54,8 @@ fun SplitScreen(
             onAddExpense = { viewModel.showAddExpenseSheet() },
             onAddMember = { viewModel.showAddMemberSheet() },
             onSettle = { member -> viewModel.showSettleSheet(member) },
-            onDelete = { viewModel.deleteGroup(uiState.selectedGroup!!) }
+            onDelete = { viewModel.deleteGroup(uiState.selectedGroup!!) },
+            currencySymbol = currencySymbol
         )
     } else {
         // Show groups list
@@ -61,7 +64,8 @@ fun SplitScreen(
             isLoading = uiState.isLoading,
             onNavigateBack = onNavigateBack,
             onGroupClick = { viewModel.selectGroup(it.group) },
-            onCreateGroup = { viewModel.showCreateGroupSheet() }
+            onCreateGroup = { viewModel.showCreateGroupSheet() },
+            currencySymbol = currencySymbol
         )
     }
     
@@ -72,7 +76,8 @@ fun SplitScreen(
             onDismiss = { viewModel.hideCreateGroupSheet() },
             onConfirm = { name, emoji, members, selectedFriends, budget ->
                 viewModel.createGroup(name, emoji, members, selectedFriends, budget)
-            }
+            },
+            currencySymbol = currencySymbol
         )
     }
     
@@ -83,7 +88,8 @@ fun SplitScreen(
             onDismiss = { viewModel.hideAddExpenseSheet() },
             onConfirm = { desc, amount, paidBy, accountId ->
                 viewModel.addExpense(desc, amount, paidBy, accountId)
-            }
+            },
+            currencySymbol = currencySymbol
         )
     }
     
@@ -107,7 +113,8 @@ fun SplitScreen(
             balance = uiState.memberBalances.find { it.member.id == uiState.settleWithMember!!.id }?.balance ?: 0.0,
             accounts = uiState.accounts,
             onDismiss = { viewModel.hideSettleSheet() },
-            onConfirm = { amount, accountId -> viewModel.settleUp(amount, accountId) }
+            onConfirm = { amount, accountId -> viewModel.settleUp(amount, accountId) },
+            currencySymbol = currencySymbol
         )
     }
 }
@@ -118,7 +125,8 @@ private fun GroupsListScreen(
     isLoading: Boolean,
     onNavigateBack: () -> Unit,
     onGroupClick: (SplitGroupWithMembers) -> Unit,
-    onCreateGroup: () -> Unit
+    onCreateGroup: () -> Unit,
+    currencySymbol: String
 ) {
     Scaffold(
         topBar = {
@@ -171,7 +179,8 @@ private fun GroupsListScreen(
                 items(groups, key = { it.group.id }) { groupWithMembers ->
                     GroupCard(
                         groupWithMembers = groupWithMembers,
-                        onClick = { onGroupClick(groupWithMembers) }
+                        onClick = { onGroupClick(groupWithMembers) },
+                        currencySymbol = currencySymbol
                     )
                 }
             }
@@ -182,7 +191,8 @@ private fun GroupsListScreen(
 @Composable
 private fun GroupCard(
     groupWithMembers: SplitGroupWithMembers,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    currencySymbol: String
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -231,14 +241,14 @@ private fun GroupCard(
             
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    formatCurrency(groupWithMembers.totalExpenses),
+                    formatAmount(groupWithMembers.totalExpenses, currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 // Show budget or "total" label
                 groupWithMembers.group.budget?.let { budget ->
                     Text(
-                        "of ${formatCurrency(budget)}",
+                        "of ${formatAmount(budget, currencySymbol)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (groupWithMembers.totalExpenses > budget) Error else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -262,7 +272,8 @@ private fun GroupDetailScreen(
     onAddExpense: () -> Unit,
     onAddMember: () -> Unit,
     onSettle: (GroupMember) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    currencySymbol: String
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     
@@ -346,7 +357,7 @@ private fun GroupDetailScreen(
                                     color = if (isOverBudget) Error else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    "${formatCurrency(totalSpent)} / ${formatCurrency(budget)}",
+                                    "${formatAmount(totalSpent, currencySymbol)} / ${formatAmount(budget, currencySymbol)}",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isOverBudget) Error else MaterialTheme.colorScheme.onPrimaryContainer
@@ -385,7 +396,7 @@ private fun GroupDetailScreen(
                 }
                 
                 items(balances, key = { it.member.id }) { balance ->
-                    BalanceCard(balance = balance, onSettle = { onSettle(balance.member) })
+                    BalanceCard(balance = balance, onSettle = { onSettle(balance.member) }, currencySymbol = currencySymbol)
                 }
             } else if (expenses.isNotEmpty()) {
                 item {
@@ -443,7 +454,7 @@ private fun GroupDetailScreen(
             } else {
                 items(expenses, key = { it.id }) { expense ->
                     val paidBy = members.find { it.id == expense.paidById }
-                    ExpenseCard(expense = expense, paidBy = paidBy)
+                    ExpenseCard(expense = expense, paidBy = paidBy, currencySymbol = currencySymbol)
                 }
             }
             
@@ -469,7 +480,7 @@ private fun GroupDetailScreen(
 }
 
 @Composable
-private fun BalanceCard(balance: MemberBalance, onSettle: () -> Unit) {
+private fun BalanceCard(balance: MemberBalance, onSettle: () -> Unit, currencySymbol: String) {
     val isOwed = balance.balance > 0
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -490,7 +501,7 @@ private fun BalanceCard(balance: MemberBalance, onSettle: () -> Unit) {
                 )
             }
             Text(
-                formatCurrency(balance.balance.absoluteValue),
+                formatAmount(balance.balance.absoluteValue, currencySymbol),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (isOwed) Success else Error
@@ -523,7 +534,7 @@ private fun MemberChip(member: GroupMember) {
 }
 
 @Composable
-private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
+private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?, currencySymbol: String) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(Spacing.md),
@@ -538,7 +549,7 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
                 )
             }
             Text(
-                formatCurrency(expense.totalAmount),
+                formatAmount(expense.totalAmount, currencySymbol),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = Error
@@ -554,7 +565,8 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?) {
 private fun CreateGroupSheet(
     friends: List<Friend> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (name: String, emoji: String, members: List<String>, selectedFriends: List<Friend>, budget: Double?) -> Unit
+    onConfirm: (name: String, emoji: String, members: List<String>, selectedFriends: List<Friend>, budget: Double?) -> Unit,
+    currencySymbol: String
 ) {
     var name by remember { mutableStateOf("") }
     var selectedEmoji by remember { mutableStateOf("👥") }
@@ -598,7 +610,7 @@ private fun CreateGroupSheet(
                 onValueChange = { budgetText = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Budget (optional)") },
                 placeholder = { Text("Set a spending limit") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -757,7 +769,8 @@ private fun AddExpenseSheet(
     members: List<GroupMember>,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onConfirm: (description: String, amount: Double, paidById: String, accountId: String?) -> Unit
+    onConfirm: (description: String, amount: Double, paidById: String, accountId: String?) -> Unit,
+    currencySymbol: String
 ) {
     var description by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -802,7 +815,7 @@ private fun AddExpenseSheet(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Amount") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -1012,7 +1025,8 @@ private fun SettleSheet(
     balance: Double,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, accountId: String?) -> Unit
+    onConfirm: (amount: Double, accountId: String?) -> Unit,
+    currencySymbol: String
 ) {
     var amount by remember { mutableStateOf(balance.absoluteValue.toString()) }
     var selectedAccount by remember { mutableStateOf<Account?>(null) }
@@ -1053,7 +1067,7 @@ private fun SettleSheet(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        formatCurrency(balance.absoluteValue),
+                        formatAmount(balance.absoluteValue, currencySymbol),
                         fontWeight = FontWeight.Bold,
                         color = if (isOwed) Success else Error
                     )
@@ -1066,7 +1080,7 @@ private fun SettleSheet(
                 value = amount,
                 onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
                 label = { Text("Amount to settle") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()

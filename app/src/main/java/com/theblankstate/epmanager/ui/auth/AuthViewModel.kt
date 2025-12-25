@@ -142,11 +142,33 @@ class AuthViewModel @Inject constructor(
                     
                     _uiState.update { 
                         it.copy(
-                            isLoading = false,
                             isLoggedIn = true,
                             user = result.user,
-                            successMessage = "Signed in with Google!"
+                            successMessage = "Signed in with Google!",
+                            isSyncing = true
                         ) 
+                    }
+                    
+                    // Auto-sync after sign-in:
+                    // 1. First RESTORE from cloud (get any existing remote data)
+                    // 2. Then BACKUP local data (this merges local with restored data)
+                    // This order prevents empty local data from overwriting cloud data
+                    // after a sign-out/sign-in cycle where local was wiped
+                    try {
+                        syncManager.restoreAllData()
+                        syncManager.syncAllData()
+                        _uiState.update { 
+                            it.copy(
+                                isLoading = false,
+                                isSyncing = false,
+                                lastSyncTime = System.currentTimeMillis()
+                            ) 
+                        }
+                    } catch (e: Exception) {
+                        // Sync failed but sign-in succeeded
+                        _uiState.update { 
+                            it.copy(isLoading = false, isSyncing = false) 
+                        }
                     }
                 }
                 is AuthResult.Error -> {

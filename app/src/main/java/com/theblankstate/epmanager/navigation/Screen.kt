@@ -31,7 +31,6 @@ sealed class Screen(val route: String) {
     }
     
     // Auth screens
-    data object Login : Screen("login")
-    data object SignUp : Screen("signup")
+    data object Onboarding : Screen("onboarding")
     data object Profile : Screen("profile")
 }

@@ -22,7 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.RecurringExpense
 import com.theblankstate.epmanager.data.model.RecurringFrequency
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -31,9 +31,11 @@ import java.util.*
 @Composable
 fun SubscriptionsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: SubscriptionsViewModel = hiltViewModel()
+    viewModel: SubscriptionsViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         topBar = {
@@ -94,6 +96,7 @@ fun SubscriptionsScreen(
                             amount = uiState.totalMonthlyAmount,
                             icon = Icons.Filled.CalendarMonth,
                             color = MaterialTheme.colorScheme.primary,
+                            currencySymbol = currencySymbol,
                             modifier = Modifier.weight(1f)
                         )
                         CostSummaryCard(
@@ -101,6 +104,7 @@ fun SubscriptionsScreen(
                             amount = uiState.totalYearlyAmount,
                             icon = Icons.Filled.DateRange,
                             color = MaterialTheme.colorScheme.tertiary,
+                            currencySymbol = currencySymbol,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -138,7 +142,8 @@ fun SubscriptionsScreen(
                                     val category = uiState.categories.find { it.id == subscription.categoryId }
                                     UpcomingRenewalItem(
                                         subscription = subscription,
-                                        category = category
+                                        category = category,
+                                        currencySymbol = currencySymbol
                                     )
                                 }
                             }
@@ -194,7 +199,8 @@ fun SubscriptionsScreen(
                             category = category,
                             onEdit = { viewModel.showEditDialog(subscription) },
                             onToggleActive = { viewModel.toggleActive(subscription) },
-                            onCancel = { viewModel.cancelSubscription(subscription) }
+                            onCancel = { viewModel.cancelSubscription(subscription) },
+                            currencySymbol = currencySymbol
                         )
                     }
                 }
@@ -211,6 +217,7 @@ fun SubscriptionsScreen(
         AddEditSubscriptionSheet(
             existingSubscription = uiState.editingSubscription,
             categories = uiState.categories,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideDialog() },
             onConfirm = { name, amount, categoryId, frequency, scheduleDay, autoAdd ->
                 viewModel.saveSubscription(name, amount, categoryId, frequency, scheduleDay, autoAdd)
@@ -225,6 +232,7 @@ private fun CostSummaryCard(
     amount: Double,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     color: Color,
+    currencySymbol: String,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -252,7 +260,7 @@ private fun CostSummaryCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = formatCurrency(amount),
+                text = formatAmount(amount, currencySymbol),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = color
@@ -264,7 +272,8 @@ private fun CostSummaryCard(
 @Composable
 private fun UpcomingRenewalItem(
     subscription: RecurringExpense,
-    category: Category?
+    category: Category?,
+    currencySymbol: String
 ) {
     val daysUntil = ((subscription.nextDueDate - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)).toInt()
     
@@ -297,7 +306,7 @@ private fun UpcomingRenewalItem(
         )
         Spacer(modifier = Modifier.width(Spacing.sm))
         Text(
-            text = formatCurrency(subscription.amount),
+            text = formatAmount(subscription.amount, currencySymbol),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -310,7 +319,8 @@ private fun SubscriptionItem(
     category: Category?,
     onEdit: () -> Unit,
     onToggleActive: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    currencySymbol: String
 ) {
     var showCancelDialog by remember { mutableStateOf(false) }
     
@@ -378,7 +388,7 @@ private fun SubscriptionItem(
                 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = formatCurrency(subscription.amount),
+                        text = formatAmount(subscription.amount, currencySymbol),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Error
@@ -478,6 +488,7 @@ private fun SubscriptionItem(
 private fun AddEditSubscriptionSheet(
     existingSubscription: RecurringExpense?,
     categories: List<Category>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (name: String, amount: Double, categoryId: String?, frequency: RecurringFrequency, scheduleDay: Int, autoAdd: Boolean) -> Unit
 ) {
@@ -549,7 +560,7 @@ private fun AddEditSubscriptionSheet(
                     amount = it.filter { c -> c.isDigit() || c == '.' }
                 },
                 label = { Text("Amount") },
-                prefix = { Text("₹") },
+                prefix = { Text(currencySymbol) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = InputFieldShape

@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.GoalPresets
 import com.theblankstate.epmanager.data.model.SavingsGoal
-import com.theblankstate.epmanager.ui.components.formatCurrency
+import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,9 +30,11 @@ import com.theblankstate.epmanager.ui.theme.*
 fun GoalsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToHistory: (String) -> Unit,
-    viewModel: GoalsViewModel = hiltViewModel()
+    viewModel: GoalsViewModel = hiltViewModel(),
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     
     Scaffold(
         topBar = {
@@ -74,7 +76,8 @@ fun GoalsScreen(
                 item {
                     OverviewCard(
                         totalSaved = uiState.totalSaved,
-                        totalTarget = uiState.totalTarget
+                        totalTarget = uiState.totalTarget,
+                        currencySymbol = currencySymbol
                     )
                 }
             }
@@ -91,6 +94,7 @@ fun GoalsScreen(
                 ) { goal ->
                     GoalCard(
                         goal = goal,
+                        currencySymbol = currencySymbol,
                         onContribute = { viewModel.showContributeDialog(goal) },
                         onDelete = { viewModel.deleteGoal(goal) },
                         onClick = { onNavigateToHistory(goal.id) }
@@ -113,7 +117,7 @@ fun GoalsScreen(
                     items = uiState.completedGoals,
                     key = { it.id }
                 ) { goal ->
-                    CompletedGoalCard(goal = goal)
+                    CompletedGoalCard(goal = goal, currencySymbol = currencySymbol)
                 }
             }
             
@@ -137,6 +141,7 @@ fun GoalsScreen(
     uiState.showContributeDialog?.let { goal ->
         ContributeDialog(
             goal = goal,
+            currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideContributeDialog() },
             onContribute = { amount -> viewModel.addContribution(goal.id, amount) }
         )
@@ -144,7 +149,7 @@ fun GoalsScreen(
 }
 
 @Composable
-private fun OverviewCard(totalSaved: Double, totalTarget: Double) {
+private fun OverviewCard(totalSaved: Double, totalTarget: Double, currencySymbol: String) {
     val progress = if (totalTarget > 0) (totalSaved / totalTarget).toFloat() else 0f
     
     Card(
@@ -170,12 +175,12 @@ private fun OverviewCard(totalSaved: Double, totalTarget: Double) {
             ) {
                 Column {
                     Text(
-                        text = formatCurrency(totalSaved),
+                        text = formatAmount(totalSaved, currencySymbol),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "of ${formatCurrency(totalTarget)}",
+                        text = "of ${formatAmount(totalTarget, currencySymbol)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
@@ -207,6 +212,7 @@ private fun OverviewCard(totalSaved: Double, totalTarget: Double) {
 @Composable
 private fun GoalCard(
     goal: SavingsGoal,
+    currencySymbol: String,
     onContribute: () -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit
@@ -248,7 +254,7 @@ private fun GoalCard(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "${formatCurrency(goal.savedAmount)} of ${formatCurrency(goal.targetAmount)}",
+                            text = "${formatAmount(goal.savedAmount, currencySymbol)} of ${formatAmount(goal.targetAmount, currencySymbol)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -313,7 +319,7 @@ private fun GoalCard(
                 }
                 
                 Text(
-                    text = "${formatCurrency(goal.remaining)} to go",
+                    text = "${formatAmount(goal.remaining, currencySymbol)} to go",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -360,7 +366,7 @@ private fun GoalCard(
 }
 
 @Composable
-private fun CompletedGoalCard(goal: SavingsGoal) {
+private fun CompletedGoalCard(goal: SavingsGoal, currencySymbol: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -389,7 +395,7 @@ private fun CompletedGoalCard(goal: SavingsGoal) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = formatCurrency(goal.targetAmount),
+                    text = formatAmount(goal.targetAmount, currencySymbol),
                     style = MaterialTheme.typography.bodySmall,
                     color = Success
                 )
@@ -598,6 +604,7 @@ private fun AddGoalSheet(
 @Composable
 private fun ContributeDialog(
     goal: SavingsGoal,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onContribute: (Double) -> Unit
 ) {
@@ -609,7 +616,7 @@ private fun ContributeDialog(
         text = {
             Column {
                 Text(
-                    text = "Current: ${formatCurrency(goal.savedAmount)} / ${formatCurrency(goal.targetAmount)}",
+                    text = "Current: ${formatAmount(goal.savedAmount, currencySymbol)} / ${formatAmount(goal.targetAmount, currencySymbol)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
