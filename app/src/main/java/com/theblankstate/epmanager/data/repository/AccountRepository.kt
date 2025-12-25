@@ -53,6 +53,10 @@ class AccountRepository @Inject constructor(
         }
     }
     
+    suspend fun deleteAllAccounts() {
+        accountDao.deleteAllAccounts()
+    }
+    
     // ========== LINKED ACCOUNT OPERATIONS ==========
     
     /**

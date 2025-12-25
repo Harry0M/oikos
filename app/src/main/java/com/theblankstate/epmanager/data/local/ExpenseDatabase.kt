@@ -15,6 +15,7 @@ import com.theblankstate.epmanager.data.local.dao.RecurringExpenseDao
 import com.theblankstate.epmanager.data.local.dao.SavingsGoalDao
 import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import com.theblankstate.epmanager.data.local.dao.SplitDao
+import com.theblankstate.epmanager.data.local.dao.TermsAcceptanceDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Budget
@@ -32,6 +33,7 @@ import com.theblankstate.epmanager.data.model.Settlement
 import com.theblankstate.epmanager.data.model.SmsTemplate
 import com.theblankstate.epmanager.data.model.SplitExpense
 import com.theblankstate.epmanager.data.model.SplitGroup
+import com.theblankstate.epmanager.data.model.TermsAcceptance
 import com.theblankstate.epmanager.data.model.Transaction
 
 @Database(
@@ -52,9 +54,10 @@ import com.theblankstate.epmanager.data.model.Transaction
         Friend::class,
         FriendRequest::class,
         Debt::class,
-        DebtPayment::class
+        DebtPayment::class,
+        TermsAcceptance::class
     ],
-    version = 14, // Added goalId and debtId to transactions
+    version = 15, // Added TermsAcceptance for T&C tracking
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -68,6 +71,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun smsTemplateDao(): SmsTemplateDao
     abstract fun friendDao(): FriendDao
     abstract fun debtDao(): DebtDao
+    abstract fun termsAcceptanceDao(): TermsAcceptanceDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"
@@ -83,13 +87,27 @@ abstract class ExpenseDatabase : RoomDatabase() {
                         database.execSQL("ALTER TABLE transactions ADD COLUMN debtId TEXT DEFAULT NULL")
                     }
                 }
+                
+                val MIGRATION_14_15 = object : Migration(14, 15) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        database.execSQL("""
+                            CREATE TABLE IF NOT EXISTS terms_acceptances (
+                                id TEXT PRIMARY KEY NOT NULL,
+                                termsVersion TEXT NOT NULL,
+                                acceptedAt INTEGER NOT NULL,
+                                userId TEXT,
+                                deviceId TEXT
+                            )
+                        """.trimIndent())
+                    }
+                }
 
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_13_14)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

@@ -3,6 +3,7 @@ package com.theblankstate.epmanager.ui.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.theblankstate.epmanager.data.repository.AppTheme
+import com.theblankstate.epmanager.data.repository.TermsRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import com.theblankstate.epmanager.data.repository.UserPreferencesRepository
 import com.theblankstate.epmanager.data.sync.FirebaseSyncManager
@@ -25,7 +26,8 @@ data class OnboardingUiState(
 class OnboardingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val transactionRepository: TransactionRepository,
-    private val firebaseSyncManager: FirebaseSyncManager
+    private val firebaseSyncManager: FirebaseSyncManager,
+    private val termsRepository: TermsRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(OnboardingUiState())
@@ -126,6 +128,23 @@ class OnboardingViewModel @Inject constructor(
             userPreferencesRepository.completeOnboarding()
             _uiState.value = _uiState.value.copy(isLoading = false, isComplete = true)
         }
+    }
+    
+    /**
+     * Record Terms & Conditions acceptance in database
+     */
+    suspend fun acceptTerms() {
+        termsRepository.acceptTerms(
+            userId = firebaseSyncManager.getCurrentUserId(),
+            deviceId = android.os.Build.MODEL
+        )
+    }
+    
+    /**
+     * Check if user has already accepted current terms
+     */
+    suspend fun hasAcceptedTerms(): Boolean {
+        return termsRepository.hasAcceptedCurrentTerms()
     }
 }
 

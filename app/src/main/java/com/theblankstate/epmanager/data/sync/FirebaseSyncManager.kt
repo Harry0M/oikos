@@ -39,6 +39,8 @@ class FirebaseSyncManager @Inject constructor(
     val isLoggedIn: Boolean
         get() = userId != null
     
+    fun getCurrentUserId(): String? = userId
+    
     private fun getUserRef(): DatabaseReference? {
         return userId?.let { database.reference.child("users").child(it) }
     }
@@ -404,16 +406,11 @@ class FirebaseSyncManager @Inject constructor(
             budgetRepository.deleteAllBudgets()
             recurringExpenseRepository.deleteAllRecurringExpenses()
             savingsGoalRepository.deleteAllGoals()
-            // Note: Categories/Accounts usually have defaults re-seeded, but we strictly wipe here.
-            // On re-login or fresh start, defaults initializes again.
-            // But we can't easily wipe them without DAO support.
-            // Assuming repositories have delete methods or we add them. 
-            // For now, focusing on user data.
-            splitRepository.deleteAllGroups() // Logic needed in repo
-            debtRepository.deleteAllDebts()   // Logic needed in repo
+            splitRepository.deleteAllGroups()
+            debtRepository.deleteAllDebts()
             
-            // Reset "isLinked" on accounts or delete them?
-            // Ideally delete all non-default accounts.
+            // Delete all accounts (defaults will be re-seeded on next login or restore)
+            accountRepository.deleteAllAccounts()
         } catch (e: Exception) {
             // Log error but proceed
         }

@@ -33,4 +33,5 @@ sealed class Screen(val route: String) {
     // Auth screens
     data object Onboarding : Screen("onboarding")
     data object Profile : Screen("profile")
+    data object Terms : Screen("terms")
 }

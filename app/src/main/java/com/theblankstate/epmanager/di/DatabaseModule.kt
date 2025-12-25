@@ -97,4 +97,10 @@ object DatabaseModule {
     fun provideDebtDao(database: ExpenseDatabase): DebtDao {
         return database.debtDao()
     }
+    
+    @Provides
+    @Singleton
+    fun provideTermsAcceptanceDao(database: ExpenseDatabase): com.theblankstate.epmanager.data.local.dao.TermsAcceptanceDao {
+        return database.termsAcceptanceDao()
+    }
 }
