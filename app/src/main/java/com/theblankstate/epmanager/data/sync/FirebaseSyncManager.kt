@@ -458,6 +458,12 @@ class FirebaseSyncManager @Inject constructor(
                 userPreferencesRepository.setCurrency(cloudCurrency)
             }
             
+            // CRITICAL: Initialize default categories and accounts BEFORE restoring transactions
+            // This prevents FOREIGN KEY constraint failures when transactions reference
+            // default categories (like "bills") or accounts (like "cash")
+            categoryRepository.initializeDefaultCategories()
+            accountRepository.initializeDefaultAccounts()
+            
             restoreSettingsFromCloud()
             restoreTransactionsFromCloud()
             restoreDebtsFromCloud()
