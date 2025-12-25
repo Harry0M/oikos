@@ -844,6 +844,80 @@ fun AddEditAccountSheet(
             
             Spacer(modifier = Modifier.height(Spacing.md))
             
+            // Icon Picker
+            Text(
+                text = "Icon",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                items(availableIcons) { iconName ->
+                    val isSelected = iconName == selectedIcon
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isSelected) 
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else 
+                                    MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable { selectedIcon = iconName },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = getAccountIcon(iconName),
+                            contentDescription = iconName,
+                            tint = if (isSelected) 
+                                MaterialTheme.colorScheme.primary 
+                            else 
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Color Picker
+            Text(
+                text = "Color",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                items(availableColors) { color ->
+                    val isSelected = color == selectedColor
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(color))
+                            .clickable { selectedColor = color },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = "Selected",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
             // SMS Detection toggle (for new non-cash accounts)
             if (existingAccount == null && selectedType != AccountType.CASH) {
                 Card(
@@ -960,82 +1034,6 @@ fun AddEditAccountSheet(
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                        }
-                    }
-                }
-            }
-            
-            // Icon Picker (only when not linked)
-            if (!enableSmsDetection) {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                
-                Text(
-                    text = "Icon",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    items(availableIcons) { iconName ->
-                        val isSelected = iconName == selectedIcon
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isSelected) 
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else 
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { selectedIcon = iconName },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = getAccountIcon(iconName),
-                                contentDescription = iconName,
-                                tint = if (isSelected) 
-                                    MaterialTheme.colorScheme.primary 
-                                else 
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.md))
-                
-                // Color Picker
-                Text(
-                    text = "Color",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    items(availableColors) { color ->
-                        val isSelected = color == selectedColor
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color(color))
-                                .clickable { selectedColor = color },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = "Selected",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
                         }
                     }
                 }
