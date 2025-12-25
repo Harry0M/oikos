@@ -106,9 +106,9 @@ class FirebaseSyncManager @Inject constructor(
             val categoriesMap = categories.associate { it.id to categoryToMap(it) }
             userRef.child("categories").setValue(categoriesMap).await()
             
-            // Backup custom accounts (not default ones)
+            // Backup ALL accounts (including default ones like Cash)
+            // This preserves balances and linked bank settings
             val accounts = accountRepository.getAllAccounts().first()
-                .filter { !it.isDefault }
             val accountsMap = accounts.associate { it.id to accountToMap(it) }
             userRef.child("accounts").setValue(accountsMap).await()
             
