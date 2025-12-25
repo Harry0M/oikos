@@ -1,6 +1,7 @@
 package com.theblankstate.epmanager.ui.analytics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,17 +17,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.components.*
 import com.theblankstate.epmanager.ui.theme.*
 
+enum class AnalyticsDetailType {
+    FINANCIAL_HEALTH,
+    SPENDING_TREND,
+    CATEGORY_SPENDING,
+    MONTHLY_OVERVIEW,
+    GOALS,
+    DEBTS,
+    BUDGET,
+    ACCOUNTS,
+    TRANSACTIONS
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
     viewModel: AnalyticsViewModel = hiltViewModel(),
-    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel(),
+    onNavigateToDetail: (AnalyticsDetailType) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
@@ -80,10 +95,12 @@ fun AnalyticsScreen(
                 }
             }
         } else {
-            // ========== FINANCIAL HEALTH SECTION ==========
+            // ==========================================
+            // 1. FINANCIAL HEALTH (TOP)
+            // ==========================================
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
+                ClickableCard(
+                    onClick = { onNavigateToDetail(AnalyticsDetailType.FINANCIAL_HEALTH) },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
@@ -94,10 +111,9 @@ fun AnalyticsScreen(
                             .padding(Spacing.lg),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "Financial Health",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                        CardHeader(
+                            title = "Financial Health",
+                            icon = Icons.Filled.Favorite
                         )
                         
                         Spacer(modifier = Modifier.height(Spacing.md))
@@ -107,87 +123,64 @@ fun AnalyticsScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Health Score Gauge
                             FinancialHealthGauge(
                                 score = uiState.healthScore,
                                 size = 140.dp,
                                 strokeWidth = 14.dp
                             )
                             
-                            // Net Worth & Stats
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                             ) {
-                                Column {
-                                    Text(
-                                        text = "Net Worth",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = formatAmount(uiState.netWorth, currencySymbol),
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (uiState.netWorth >= 0) 
-                                            MaterialTheme.colorScheme.primary 
-                                        else 
-                                            MaterialTheme.colorScheme.error
-                                    )
-                                }
+                                StatItem(
+                                    label = "Net Worth",
+                                    value = formatAmount(uiState.netWorth, currencySymbol),
+                                    valueColor = if (uiState.netWorth >= 0) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.error,
+                                    isLarge = true
+                                )
                                 
-                                Column {
-                                    Text(
-                                        text = "Transactions",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "${uiState.transactionCount}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                StatItem(
+                                    label = "Savings Rate",
+                                    value = "${uiState.savingsRate.toInt()}%",
+                                    valueColor = when {
+                                        uiState.savingsRate >= 20 -> Color(0xFF22C55E)
+                                        uiState.savingsRate >= 0 -> Color(0xFFF59E0B)
+                                        else -> MaterialTheme.colorScheme.error
+                                    }
+                                )
                             }
                         }
                         
                         Spacer(modifier = Modifier.height(Spacing.lg))
                         
-                        // Savings Rate Bar
                         SavingsRateBar(rate = uiState.savingsRate)
                     }
                 }
             }
             
-            // ========== INCOME VS EXPENSES ==========
+            // ==========================================
+            // 2. INCOME VS EXPENSES
+            // ==========================================
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                 ) {
-                    // Expenses Card
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                            containerColor = MaterialTheme.colorScheme.errorContainer
                         )
                     ) {
                         Column(modifier = Modifier.padding(Spacing.md)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.TrendingDown,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Expenses",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
+                            Text(
+                                text = "Expenses",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
                             Text(
                                 text = formatAmount(uiState.totalExpenses, currencySymbol),
                                 style = MaterialTheme.typography.titleLarge,
@@ -197,30 +190,18 @@ fun AnalyticsScreen(
                         }
                     }
                     
-                    // Income Card
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     ) {
                         Column(modifier = Modifier.padding(Spacing.md)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.TrendingUp,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Income",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                            Text(
+                                text = "Income",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                             Text(
                                 text = formatAmount(uiState.totalIncome, currencySymbol),
                                 style = MaterialTheme.typography.titleLarge,
@@ -232,31 +213,24 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== DAILY SPENDING TREND ==========
+            // ==========================================
+            // 3. DAILY SPENDING TREND (Before Monthly)
+            // ==========================================
             if (uiState.dailySpending.isNotEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.SPENDING_TREND) }
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(Spacing.lg)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Spending Trend (7 Days)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Avg: ${formatAmount(uiState.averageDailySpend, currencySymbol)}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            CardHeader(
+                                title = "Spending Trend (7 Days)",
+                                icon = Icons.Filled.TrendingDown,
+                                trailing = "Avg: ${formatAmount(uiState.averageDailySpend, currencySymbol)}"
+                            )
                             
                             Spacer(modifier = Modifier.height(Spacing.lg))
                             
@@ -269,47 +243,153 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== GOALS PROGRESS ==========
-            if (uiState.activeGoals.isNotEmpty()) {
+            // ==========================================
+            // 4. MONTHLY OVERVIEW (After Daily)
+            // ==========================================
+            if (uiState.monthlyData.isNotEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.MONTHLY_OVERVIEW) }
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(Spacing.lg)
                         ) {
+                            CardHeader(
+                                title = "Monthly Overview",
+                                icon = Icons.Filled.CalendarMonth
+                            )
+                            
+                            Spacer(modifier = Modifier.height(Spacing.lg))
+                            
+                            MonthlyBarChart(
+                                data = uiState.monthlyData.map { it.month to it.expense },
+                                barColor = MaterialTheme.colorScheme.primary,
+                                height = 120.dp
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // ==========================================
+            // 5. CATEGORY SPENDING PIE CHART
+            // ==========================================
+            if (uiState.categorySpending.isNotEmpty()) {
+                item {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.CATEGORY_SPENDING) }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.lg)
+                        ) {
+                            CardHeader(
+                                title = "Spending by Category",
+                                icon = Icons.Filled.PieChart
+                            )
+                            
+                            Spacer(modifier = Modifier.height(Spacing.lg))
+                            
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Savings,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Text(
-                                        text = "Savings Goals",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                Text(
-                                    text = "${uiState.goalsProgress.toInt()}%",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.tertiary
+                                SpendingPieChart(
+                                    categorySpending = uiState.categorySpending.take(6),
+                                    size = 160.dp,
+                                    strokeWidth = 28.dp
                                 )
+                                
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                ) {
+                                    uiState.categorySpending.take(4).forEach { spending ->
+                                        ChartLegendItem(
+                                            color = Color(spending.category.color),
+                                            label = spending.category.name.split(" ").first(),
+                                            value = "${spending.percentage.toInt()}%"
+                                        )
+                                    }
+                                    if (uiState.categorySpending.size > 4) {
+                                        Text(
+                                            text = "+${uiState.categorySpending.size - 4} more",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
+                        }
+                    }
+                }
+            }
+            
+            // ==========================================
+            // 6. QUICK STATS ROW
+            // ==========================================
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Text(
+                                text = "Avg. Daily",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = formatAmount(uiState.averageDailySpend, currencySymbol),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    Card(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Text(
+                                text = "Top Category",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = uiState.topCategory?.category?.name?.split(" ")?.first() ?: "None",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // ==========================================
+            // 7. GOALS PROGRESS
+            // ==========================================
+            if (uiState.activeGoals.isNotEmpty()) {
+                item {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.GOALS) }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.lg)
+                        ) {
+                            CardHeader(
+                                title = "Savings Goals",
+                                icon = Icons.Filled.Savings,
+                                iconTint = MaterialTheme.colorScheme.tertiary,
+                                trailing = "${uiState.goalsProgress.toInt()}%"
+                            )
                             
                             Spacer(modifier = Modifier.height(Spacing.sm))
                             
-                            // Overall progress
                             Text(
                                 text = "${formatAmount(uiState.totalGoalsSaved, currencySymbol)} / ${formatAmount(uiState.totalGoalsTarget, currencySymbol)}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -318,7 +398,6 @@ fun AnalyticsScreen(
                             
                             Spacer(modifier = Modifier.height(Spacing.md))
                             
-                            // Individual goals
                             uiState.activeGoals.take(3).forEach { goalProgress ->
                                 GoalProgressMiniBar(
                                     name = goalProgress.goal.name,
@@ -332,31 +411,23 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== DEBT OVERVIEW ==========
+            // ==========================================
+            // 8. DEBT OVERVIEW
+            // ==========================================
             if (uiState.totalDebtOwed > 0 || uiState.totalCreditOwed > 0) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.DEBTS) }
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(Spacing.lg)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.SwapHoriz,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "Debts & Credits",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            CardHeader(
+                                title = "Debts & Credits",
+                                icon = Icons.Filled.SwapHoriz
+                            )
                             
                             Spacer(modifier = Modifier.height(Spacing.md))
                             
@@ -364,7 +435,6 @@ fun AnalyticsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                             ) {
-                                // You Owe
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "You Owe",
@@ -379,7 +449,6 @@ fun AnalyticsScreen(
                                     )
                                 }
                                 
-                                // Owed to You
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "Owed to You",
@@ -399,10 +468,14 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== BUDGET UTILIZATION ==========
+            // ==========================================
+            // 9. BUDGET UTILIZATION
+            // ==========================================
             if (uiState.totalBudget > 0) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.BUDGET) }
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -413,22 +486,10 @@ fun AnalyticsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.PieChart,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Text(
-                                        text = "Budget Utilization",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                CardHeader(
+                                    title = "Budget",
+                                    icon = Icons.Filled.AccountBalanceWallet
+                                )
                                 
                                 if (uiState.overBudgetCategories > 0) {
                                     Surface(
@@ -450,7 +511,6 @@ fun AnalyticsScreen(
                             
                             Spacer(modifier = Modifier.height(Spacing.md))
                             
-                            // Budget progress bar
                             val budgetColor = when {
                                 uiState.budgetUtilization > 100 -> MaterialTheme.colorScheme.error
                                 uiState.budgetUtilization > 80 -> Color(0xFFF59E0B)
@@ -495,32 +555,24 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== ACCOUNT BREAKDOWN ==========
+            // ==========================================
+            // 10. ACCOUNT BALANCES
+            // ==========================================
             if (uiState.accountBalances.isNotEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    ClickableCard(
+                        onClick = { onNavigateToDetail(AnalyticsDetailType.ACCOUNTS) }
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(Spacing.lg)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Account Balances",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = formatAmount(uiState.totalAccountBalance, currencySymbol),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            CardHeader(
+                                title = "Account Balances",
+                                icon = Icons.Filled.AccountBalance,
+                                trailing = formatAmount(uiState.totalAccountBalance, currencySymbol)
+                            )
                             
                             Spacer(modifier = Modifier.height(Spacing.lg))
                             
@@ -530,98 +582,35 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== CATEGORY SPENDING (PIE CHART) ==========
-            if (uiState.categorySpending.isNotEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.lg)
-                        ) {
-                            Text(
-                                text = "Spending by Category",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            
-                            Spacer(modifier = Modifier.height(Spacing.lg))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SpendingPieChart(
-                                    categorySpending = uiState.categorySpending.take(6),
-                                    size = 160.dp,
-                                    strokeWidth = 28.dp
-                                )
-                                
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                                ) {
-                                    uiState.categorySpending.take(4).forEach { spending ->
-                                        ChartLegendItem(
-                                            color = Color(spending.category.color),
-                                            label = spending.category.name.split(" ").first(),
-                                            value = "${spending.percentage.toInt()}%"
-                                        )
-                                    }
-                                    if (uiState.categorySpending.size > 4) {
-                                        Text(
-                                            text = "+${uiState.categorySpending.size - 4} more",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // ========== MONTHLY COMPARISON ==========
-            if (uiState.monthlyData.isNotEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.lg)
-                        ) {
-                            Text(
-                                text = "Monthly Overview",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            
-                            Spacer(modifier = Modifier.height(Spacing.lg))
-                            
-                            MonthlyBarChart(
-                                data = uiState.monthlyData.map { it.month to it.expense },
-                                barColor = MaterialTheme.colorScheme.primary,
-                                height = 120.dp
-                            )
-                        }
-                    }
-                }
-            }
-            
-            // ========== TOP TRANSACTIONS ==========
+            // ==========================================
+            // 11. TOP TRANSACTIONS
+            // ==========================================
             if (uiState.topTransactions.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Top Expenses",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = Spacing.md)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToDetail(AnalyticsDetailType.TRANSACTIONS) }
+                            .padding(top = Spacing.md),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Top Expenses",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.ArrowForward,
+                            contentDescription = "View all",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 
                 items(
-                    items = uiState.topTransactions,
+                    items = uiState.topTransactions.take(3),
                     key = { it.transaction.id }
                 ) { topTxn ->
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -631,7 +620,6 @@ fun AnalyticsScreen(
                                 .padding(Spacing.md),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Category color dot
                             Box(
                                 modifier = Modifier
                                     .size(12.dp)
@@ -666,57 +654,35 @@ fun AnalyticsScreen(
                 }
             }
             
-            // ========== QUICK STATS ==========
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    Card(modifier = Modifier.weight(1f)) {
-                        Column(modifier = Modifier.padding(Spacing.md)) {
-                            Text(
-                                text = "Avg. Daily",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = formatAmount(uiState.averageDailySpend, currencySymbol),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    
-                    Card(modifier = Modifier.weight(1f)) {
-                        Column(modifier = Modifier.padding(Spacing.md)) {
-                            Text(
-                                text = "Top Category",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = uiState.topCategory?.category?.name?.split(" ")?.first() ?: "None",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-            
-            // ========== CATEGORY BREAKDOWN LIST ==========
+            // ==========================================
+            // 12. CATEGORY BREAKDOWN LIST
+            // ==========================================
             if (uiState.categorySpending.isNotEmpty()) {
                 item {
-                    Text(
-                        text = "Category Breakdown",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = Spacing.md)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToDetail(AnalyticsDetailType.CATEGORY_SPENDING) }
+                            .padding(top = Spacing.md),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Category Breakdown",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.ArrowForward,
+                            contentDescription = "View all",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 
                 items(
-                    items = uiState.categorySpending,
+                    items = uiState.categorySpending.take(5),
                     key = { it.category.id }
                 ) { spending ->
                     CategorySpendingItem(spending = spending, currencySymbol = currencySymbol)
@@ -759,6 +725,101 @@ fun AnalyticsScreen(
                 Spacer(modifier = Modifier.height(Spacing.huge))
             }
         }
+    }
+}
+
+// ==========================================
+// HELPER COMPOSABLES
+// ==========================================
+
+@Composable
+private fun ClickableCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    colors: CardColors = CardDefaults.cardColors(),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = colors
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun CardHeader(
+    title: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
+    trailing: String? = null
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            if (trailing != null) {
+                Text(
+                    text = trailing,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = iconTint
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "View details",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatItem(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    isLarge: Boolean = false
+) {
+    Column {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = if (isLarge) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }
 

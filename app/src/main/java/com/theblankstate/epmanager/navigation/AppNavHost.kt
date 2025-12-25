@@ -10,6 +10,8 @@ import androidx.navigation.navArgument
 import com.theblankstate.epmanager.ui.add.AddTransactionScreen
 import com.theblankstate.epmanager.ui.ai.AIInsightsScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsScreen
+import com.theblankstate.epmanager.ui.analytics.AnalyticsDetailScreen
+import com.theblankstate.epmanager.ui.analytics.AnalyticsDetailType
 import com.theblankstate.epmanager.ui.auth.ProfileScreen
 import com.theblankstate.epmanager.ui.budget.BudgetScreen
 import com.theblankstate.epmanager.ui.categories.CategoriesScreen
@@ -158,7 +160,31 @@ fun AppNavHost(
         }
         
         composable(Screen.Analytics.route) {
-            AnalyticsScreen()
+            AnalyticsScreen(
+                onNavigateToDetail = { detailType ->
+                    navController.navigate(Screen.AnalyticsDetail.createRoute(detailType.name))
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.AnalyticsDetail.route,
+            arguments = listOf(
+                navArgument("type") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val typeString = backStackEntry.arguments?.getString("type") ?: ""
+            val detailType = try {
+                AnalyticsDetailType.valueOf(typeString)
+            } catch (e: IllegalArgumentException) {
+                AnalyticsDetailType.FINANCIAL_HEALTH
+            }
+            AnalyticsDetailScreen(
+                detailType = detailType,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
         }
         
         composable(Screen.Budget.route) {

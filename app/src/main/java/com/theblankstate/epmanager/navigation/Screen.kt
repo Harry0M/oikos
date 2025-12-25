@@ -29,6 +29,9 @@ sealed class Screen(val route: String) {
     data object EditTransaction : Screen("edit_transaction/{transactionId}") {
         fun createRoute(transactionId: String) = "edit_transaction/$transactionId"
     }
+    data object AnalyticsDetail : Screen("analytics_detail/{type}") {
+        fun createRoute(type: String) = "analytics_detail/$type"
+    }
     
     // Auth screens
     data object Onboarding : Screen("onboarding")
