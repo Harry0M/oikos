@@ -719,7 +719,7 @@ private fun DeleteConfirmDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddEditAccountSheet(
+fun AddEditAccountSheet(
     existingAccount: Account?,
     bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
@@ -1231,7 +1231,7 @@ private fun BankDropdownItem(
 }
 
 @Composable
-private fun BankListItem(
+fun BankListItem(
     bank: BankSuggestion,
     isCustom: Boolean,
     isSelected: Boolean,
@@ -1527,7 +1527,7 @@ private fun LinkAccountDialog(
 
 // Helper function to get icon from name
 @Composable
-private fun getAccountIcon(iconName: String) = when (iconName) {
+fun getAccountIcon(iconName: String) = when (iconName) {
     "Money" -> Icons.Filled.Money
     "AccountBalance" -> Icons.Filled.AccountBalance
     "PhoneAndroid" -> Icons.Filled.PhoneAndroid

@@ -11,6 +11,8 @@ import com.theblankstate.epmanager.data.repository.FriendsRepository
 import com.theblankstate.epmanager.data.repository.SavingsGoalRepository
 import com.theblankstate.epmanager.data.repository.SplitRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
+import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
+import com.theblankstate.epmanager.ui.accounts.BankSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -64,7 +66,9 @@ data class AddTransactionUiState(
     val activeDebts: List<Debt> = emptyList(),
     val activeCredits: List<Debt> = emptyList(),
     val selectedDebt: Debt? = null,
-    val isDebtPayment: Boolean = false
+    val isDebtPayment: Boolean = false,
+    // Bank suggestions for adding linked accounts
+    val bankSuggestions: List<BankSuggestion> = emptyList()
 )
 
 @HiltViewModel
@@ -75,7 +79,8 @@ class AddTransactionViewModel @Inject constructor(
     private val splitRepository: SplitRepository,
     private val friendsRepository: FriendsRepository,
     private val savingsGoalRepository: SavingsGoalRepository,
-    private val debtRepository: DebtRepository
+    private val debtRepository: DebtRepository,
+    private val smsTemplateDao: SmsTemplateDao
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AddTransactionUiState())
@@ -88,6 +93,7 @@ class AddTransactionViewModel @Inject constructor(
         }
         loadData()
         loadOwedBalances()
+        loadBankSuggestions()
     }
     
     private fun loadData() {
@@ -412,6 +418,74 @@ class AddTransactionViewModel @Inject constructor(
             ) }
         }
     }
+    
+    /**
+     * Create a new linked bank account with proper sender patterns
+     */
+    fun createLinkedAccount(
+        name: String,
+        bankSuggestion: BankSuggestion,
+        accountNumber: String?,
+        type: AccountType,
+        balance: Double
+    ) {
+        viewModelScope.launch {
+            val newAccount = accountRepository.createLinkedAccount(
+                name = name,
+                bankCode = bankSuggestion.code,
+                accountNumber = accountNumber,
+                type = type,
+                senderIds = bankSuggestion.senderPatterns
+            )
+            
+            // Update balance if not zero
+            if (balance != 0.0) {
+                accountRepository.updateBalance(newAccount.id, balance)
+            }
+            
+            // Refresh accounts and select the new one
+            val updatedAccounts = accountRepository.getAllAccounts().first()
+            _uiState.update { it.copy(
+                accounts = updatedAccounts,
+                selectedAccount = newAccount.copy(balance = balance)
+            ) }
+        }
+    }
+    
+    private fun loadBankSuggestions() {
+        viewModelScope.launch {
+            // Get registry banks
+            val registryBanks = (BankRegistry.banks + BankRegistry.upiProviders).map { bank ->
+                BankSuggestion(
+                    name = bank.name,
+                    code = bank.code,
+                    senderPatterns = bank.senderPatterns,
+                    color = bank.color,
+                    isCustom = false
+                )
+            }
+            
+            // Add custom templates
+            smsTemplateDao.getAllActiveTemplates()
+                .collect { templates ->
+                    val customBanks = templates.map { template ->
+                        BankSuggestion(
+                            name = template.bankName,
+                            code = template.bankName.uppercase().take(6),
+                            senderPatterns = template.senderIds.split(",").map { it.trim() },
+                            color = 0xFF6B7280, // Gray for custom
+                            isCustom = true,
+                            templateId = template.id
+                        )
+                    }
+                    
+                    _uiState.update { 
+                        it.copy(bankSuggestions = registryBanks + customBanks) 
+                    }
+                }
+        }
+    }
+
     
     fun updateDate(timestamp: Long) {
         _uiState.update { it.copy(selectedDate = timestamp) }

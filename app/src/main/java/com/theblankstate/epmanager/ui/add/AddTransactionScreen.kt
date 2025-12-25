@@ -43,9 +43,13 @@ import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.CategoryType
 import com.theblankstate.epmanager.data.model.TransactionType
+import com.theblankstate.epmanager.ui.accounts.AddEditAccountSheet
+import com.theblankstate.epmanager.ui.accounts.BankSuggestion
+import com.theblankstate.epmanager.ui.accounts.getAccountIcon
 import com.theblankstate.epmanager.ui.budget.SelectCategoryBottomSheet
 import com.theblankstate.epmanager.ui.budget.AddCategoryBottomSheet
 import com.theblankstate.epmanager.ui.theme.*
+import com.theblankstate.epmanager.ui.components.formatAmount
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.Locale
@@ -229,16 +233,19 @@ fun AddTransactionScreen(
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.selectAccount(account) },
-                        label = { Text(account.name) },
+                        label = { 
+                            Column {
+                                Text(account.name)
+                                Text(
+                                    text = formatAmount(account.balance, currencySymbol),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
                         leadingIcon = {
                             Icon(
-                                imageVector = when (account.name.lowercase()) {
-                                    "cash" -> Icons.Filled.Money
-                                    "bank account" -> Icons.Filled.AccountBalance
-                                    "upi" -> Icons.Filled.PhoneAndroid
-                                    "credit card" -> Icons.Filled.CreditCard
-                                    else -> Icons.Filled.Wallet
-                                },
+                                imageVector = getAccountIcon(account.icon),
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -770,12 +777,18 @@ fun AddTransactionScreen(
         )
     }
     
-    // Add Account Sheet (instead of picker, now creates new accounts)
+    // Add Account Sheet (using reusable AddEditAccountSheet from AccountsScreen)
     if (showAccountSheet) {
-        AddAccountSheet(
+        AddEditAccountSheet(
+            existingAccount = null,
+            bankSuggestions = uiState.bankSuggestions,
             onDismiss = { showAccountSheet = false },
-            onConfirm = { name, type, icon, color, balance, bankCode, accountNumber ->
-                viewModel.addAccount(name, type, icon, color, balance, bankCode, accountNumber)
+            onConfirm = { name, type, icon, color, balance ->
+                viewModel.addAccount(name, type, icon, color, balance, null, null)
+                showAccountSheet = false
+            },
+            onConfirmLinked = { name, bankSuggestion, accountNumber, type, balance ->
+                viewModel.createLinkedAccount(name, bankSuggestion, accountNumber, type, balance)
                 showAccountSheet = false
             }
         )
@@ -1476,290 +1489,6 @@ private fun AccountPickerSheet(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddAccountSheet(
-    onDismiss: () -> Unit,
-    onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double, bankCode: String?, accountNumber: String?) -> Unit
-) {
-    var accountName by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(AccountType.BANK) }
-    var selectedIcon by remember { mutableStateOf("AccountBalance") }
-    var selectedColor by remember { mutableStateOf(0xFF3B82F6L) }
-    var initialBalance by remember { mutableStateOf("") }
-    var bankCode by remember { mutableStateOf("") }
-    var accountNumber by remember { mutableStateOf("") }
-    var showSmsLinking by remember { mutableStateOf(false) }
-    
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
-    // Account type options with emojis
-    val accountTypes = listOf(
-        AccountType.CASH to ("💵" to "Cash"),
-        AccountType.BANK to ("🏦" to "Bank"),
-        AccountType.UPI to ("📱" to "UPI"),
-        AccountType.CREDIT_CARD to ("💳" to "Card"),
-        AccountType.WALLET to ("👛" to "Wallet"),
-        AccountType.OTHER to ("💰" to "Other")
-    )
-    
-    // Color options
-    val colors = listOf(
-        0xFF22C55E, 0xFF3B82F6, 0xFF8B5CF6, 0xFFF59E0B,
-        0xFFEF4444, 0xFF06B6D4, 0xFFEC4899, 0xFF6B7280
-    )
-    
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.lg)
-                .padding(bottom = Spacing.xxl)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Add Account",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close")
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            // Account Name
-            Text(
-                text = "Account Name",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            OutlinedTextField(
-                value = accountName,
-                onValueChange = { accountName = it },
-                placeholder = { Text("e.g., HDFC Savings") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = InputFieldShape,
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // Account Type
-            Text(
-                text = "Account Type",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-            ) {
-                accountTypes.take(3).forEach { (type, pair) ->
-                    val (emoji, label) = pair
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { 
-                            selectedType = type
-                            selectedIcon = when (type) {
-                                AccountType.CASH -> "Money"
-                                AccountType.BANK -> "AccountBalance"
-                                AccountType.UPI -> "PhoneAndroid"
-                                AccountType.CREDIT_CARD -> "CreditCard"
-                                AccountType.WALLET -> "Wallet"
-                                AccountType.OTHER -> "AttachMoney"
-                            }
-                        },
-                        label = { Text("$emoji $label", maxLines = 1) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-            ) {
-                accountTypes.drop(3).forEach { (type, pair) ->
-                    val (emoji, label) = pair
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { 
-                            selectedType = type
-                            selectedIcon = when (type) {
-                                AccountType.CASH -> "Money"
-                                AccountType.BANK -> "AccountBalance"
-                                AccountType.UPI -> "PhoneAndroid"
-                                AccountType.CREDIT_CARD -> "CreditCard"
-                                AccountType.WALLET -> "Wallet"
-                                AccountType.OTHER -> "AttachMoney"
-                            }
-                        },
-                        label = { Text("$emoji $label", maxLines = 1) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // Color Selection
-            Text(
-                text = "Color",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                colors.forEach { color ->
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(color),
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable { selectedColor = color }
-                    ) {
-                        if (selectedColor == color) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // Initial Balance
-            Text(
-                text = "Initial Balance",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            OutlinedTextField(
-                value = initialBalance,
-                onValueChange = { initialBalance = it.filter { c -> c.isDigit() || c == '.' } },
-                placeholder = { Text("0.00") },
-                prefix = { Text("₹", fontWeight = FontWeight.Bold) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = InputFieldShape,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            // SMS Linking (optional, for bank accounts)
-            if (selectedType == AccountType.BANK || selectedType == AccountType.CREDIT_CARD) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Enable SMS Auto-Detection",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Auto-detect transactions from SMS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = showSmsLinking,
-                        onCheckedChange = { showSmsLinking = it }
-                    )
-                }
-                
-                if (showSmsLinking) {
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    OutlinedTextField(
-                        value = bankCode,
-                        onValueChange = { bankCode = it.uppercase() },
-                        label = { Text("Bank Code") },
-                        placeholder = { Text("e.g., HDFC, SBI, ICICI") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = InputFieldShape,
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-                    OutlinedTextField(
-                        value = accountNumber,
-                        onValueChange = { accountNumber = it.filter { c -> c.isDigit() }.take(4) },
-                        label = { Text("Last 4 Digits") },
-                        placeholder = { Text("e.g., 1234") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = InputFieldShape,
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(Spacing.md))
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            // Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Cancel")
-                }
-                
-                Button(
-                    onClick = {
-                        if (accountName.isNotBlank()) {
-                            val balance = initialBalance.toDoubleOrNull() ?: 0.0
-                            onConfirm(
-                                accountName.trim(),
-                                selectedType,
-                                selectedIcon,
-                                selectedColor,
-                                balance,
-                                if (showSmsLinking && bankCode.isNotBlank()) bankCode else null,
-                                if (showSmsLinking && accountNumber.isNotBlank()) accountNumber else null
-                            )
-                        }
-                    },
-                    enabled = accountName.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Add")
                 }
             }
         }
