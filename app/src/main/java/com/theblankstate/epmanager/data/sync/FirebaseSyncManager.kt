@@ -411,6 +411,10 @@ class FirebaseSyncManager @Inject constructor(
             
             // Delete all accounts (defaults will be re-seeded on next login or restore)
             accountRepository.deleteAllAccounts()
+            
+            // Clear user preferences (currency, onboarding status)
+            // This ensures new user gets their own settings from Firebase
+            userPreferencesRepository.clearUserPreferences()
         } catch (e: Exception) {
             // Log error but proceed
         }

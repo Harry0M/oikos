@@ -98,7 +98,12 @@ class ExpenseWidgetProvider : AppWidgetProvider() {
                 todayTransactions.forEach { transaction ->
                     when (transaction.type) {
                         TransactionType.EXPENSE -> todayExpense += transaction.amount
-                        TransactionType.INCOME -> todayIncome += transaction.amount
+                        TransactionType.INCOME -> {
+                            // Exclude adjustment transactions from income
+                            if (transaction.categoryId != "adjustment") {
+                                todayIncome += transaction.amount
+                            }
+                        }
                     }
                 }
                 

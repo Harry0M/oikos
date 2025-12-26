@@ -65,7 +65,7 @@ class TransactionRepository @Inject constructor(
         transactionDao.getTotalByType(TransactionType.EXPENSE)
     
     fun getTotalIncome(): Flow<Double?> = 
-        transactionDao.getTotalByType(TransactionType.INCOME)
+        transactionDao.getTotalIncomeExcludingAdjustments()
     
     fun getMonthlyExpenses(): Flow<Double?> {
         val calendar = Calendar.getInstance().apply {
@@ -94,7 +94,7 @@ class TransactionRepository @Inject constructor(
         calendar.add(Calendar.MONTH, 1)
         val endOfMonth = calendar.timeInMillis
         
-        return transactionDao.getTotalByTypeInRange(TransactionType.INCOME, startOfMonth, endOfMonth)
+        return transactionDao.getTotalIncomeExcludingAdjustmentsInRange(startOfMonth, endOfMonth)
     }
     
     fun getWeeklyExpenses(): Flow<Double?> {
@@ -124,7 +124,7 @@ class TransactionRepository @Inject constructor(
         calendar.add(Calendar.WEEK_OF_YEAR, 1)
         val endOfWeek = calendar.timeInMillis
         
-        return transactionDao.getTotalByTypeInRange(TransactionType.INCOME, startOfWeek, endOfWeek)
+        return transactionDao.getTotalIncomeExcludingAdjustmentsInRange(startOfWeek, endOfWeek)
     }
     
     suspend fun getCategorySpendingThisMonth(categoryId: String): Double {

@@ -145,5 +145,22 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.HAS_COMPLETED_ONBOARDING] = true
         }
     }
+    
+    /**
+     * Clear all user preferences on logout.
+     * This ensures the next user starts fresh and gets their own settings from Firebase.
+     */
+    suspend fun clearUserPreferences() {
+        dataStore.edit { preferences ->
+            // Clear currency preferences
+            preferences.remove(PreferencesKeys.SELECTED_CURRENCY_CODE)
+            preferences.remove(PreferencesKeys.HAS_CURRENCY_BEEN_SET)
+            
+            // Clear onboarding (so new user goes through onboarding)
+            preferences.remove(PreferencesKeys.HAS_COMPLETED_ONBOARDING)
+            
+            // Note: Theme preferences are intentionally kept - they're device-specific, not user-specific
+        }
+    }
 }
 

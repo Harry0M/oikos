@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.auth.AuthViewModel
 import com.theblankstate.epmanager.ui.theme.Spacing
+import com.theblankstate.epmanager.util.CurrencyViewModel
+import com.theblankstate.epmanager.data.model.CurrencyProvider
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -38,10 +40,12 @@ fun SettingsScreen(
     onNavigateToDebtCredit: () -> Unit = {},
     onNavigateToThemeCustomization: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel(),
-    themeViewModel: com.theblankstate.epmanager.ui.theme.ThemeViewModel = hiltViewModel()
+    themeViewModel: com.theblankstate.epmanager.ui.theme.ThemeViewModel = hiltViewModel(),
+    currencyViewModel: CurrencyViewModel = hiltViewModel()
 ) {
     val authState by authViewModel.uiState.collectAsState()
     val themeState by themeViewModel.themeState.collectAsState()
+    val currentCurrencyCode by currencyViewModel.currencyCode.collectAsState(initial = "INR")
     var showClearDataDialog by remember { mutableStateOf(false) }
     
     Column(
@@ -391,7 +395,7 @@ fun SettingsScreen(
         SettingsItem(
             icon = Icons.Filled.AttachMoney,
             title = "Currency",
-            subtitle = "INR - Indian Rupee"
+            subtitle = "${CurrencyProvider.getSymbol(currentCurrencyCode)} - ${CurrencyProvider.getCurrency(currentCurrencyCode)?.name ?: currentCurrencyCode}"
         )
         
         Spacer(modifier = Modifier.height(Spacing.lg))

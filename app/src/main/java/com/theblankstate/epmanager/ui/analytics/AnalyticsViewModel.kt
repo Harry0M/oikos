@@ -154,7 +154,7 @@ class AnalyticsViewModel @Inject constructor(
                         .sumOf { it.amount }
                     
                     val income = transactions
-                        .filter { it.type == TransactionType.INCOME }
+                        .filter { it.type == TransactionType.INCOME && it.categoryId != "adjustment" }
                         .sumOf { it.amount }
                     
                     val categoryMap = categories.associateBy { it.id }
@@ -235,7 +235,7 @@ class AnalyticsViewModel @Inject constructor(
                             .filter { it.type == TransactionType.EXPENSE }
                             .sumOf { it.amount }
                         val income = transactions
-                            .filter { it.type == TransactionType.INCOME }
+                            .filter { it.type == TransactionType.INCOME && it.categoryId != "adjustment" }
                             .sumOf { it.amount }
                         
                         monthlyData.add(MonthlyData(monthName, expense, income))

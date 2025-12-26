@@ -174,7 +174,7 @@ class ExportManager @Inject constructor(
         }
         
         val totalExpenses = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-        val totalIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        val totalIncome = transactions.filter { it.type == TransactionType.INCOME && it.categoryId != "adjustment" }.sumOf { it.amount }
         
         return ExportPreview(
             transactionCount = transactions.size,
@@ -211,7 +211,7 @@ class ExportManager @Inject constructor(
                 .sumOf { it.amount }
             
             val totalIncome = transactions
-                .filter { it.type == TransactionType.INCOME }
+                .filter { it.type == TransactionType.INCOME && it.categoryId != "adjustment" }
                 .sumOf { it.amount }
             
             val categorySpending = transactions

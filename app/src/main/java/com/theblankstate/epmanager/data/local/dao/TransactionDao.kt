@@ -58,6 +58,13 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND date BETWEEN :startDate AND :endDate")
     fun getTotalByTypeInRange(type: TransactionType, startDate: Long, endDate: Long): Flow<Double?>
     
+    // Income excluding adjustment category
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND (categoryId IS NULL OR categoryId != 'adjustment')")
+    fun getTotalIncomeExcludingAdjustments(): Flow<Double?>
+    
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND (categoryId IS NULL OR categoryId != 'adjustment') AND date BETWEEN :startDate AND :endDate")
+    fun getTotalIncomeExcludingAdjustmentsInRange(startDate: Long, endDate: Long): Flow<Double?>
+    
     @Query("""
         SELECT SUM(amount) FROM transactions 
         WHERE type = 'EXPENSE' AND categoryId = :categoryId 
