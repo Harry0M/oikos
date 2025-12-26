@@ -13,6 +13,7 @@ import com.theblankstate.epmanager.data.local.dao.SavingsGoalDao
 import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import com.theblankstate.epmanager.data.local.dao.SplitDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
+import com.theblankstate.epmanager.data.local.dao.NotificationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -102,5 +103,11 @@ object DatabaseModule {
     @Singleton
     fun provideTermsAcceptanceDao(database: ExpenseDatabase): com.theblankstate.epmanager.data.local.dao.TermsAcceptanceDao {
         return database.termsAcceptanceDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideNotificationDao(database: ExpenseDatabase): NotificationDao {
+        return database.notificationDao()
     }
 }

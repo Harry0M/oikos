@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.TransactionType
+import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import kotlinx.coroutines.flow.first
@@ -16,25 +17,71 @@ import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Filter options for export
+ */
+data class ExportFilters(
+    val startDate: Long? = null,
+    val endDate: Long? = null,
+    val categoryIds: Set<String>? = null,
+    val accountIds: Set<String>? = null,
+    val transactionTypes: Set<TransactionType>? = null,
+    val includeNotes: Boolean = true,
+    val includeAccountInfo: Boolean = true
+)
+
 @Singleton
 class ExportManager @Inject constructor(
     private val transactionRepository: TransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository
 ) {
     
     /**
-     * Export transactions to CSV format
+     * Export transactions to CSV format with filters
      */
-    suspend fun exportToCSV(context: Context, startDate: Long? = null, endDate: Long? = null): Result<Uri> {
+    suspend fun exportToCSV(
+        context: Context, 
+        filters: ExportFilters = ExportFilters()
+    ): Result<Uri> {
         return try {
-            val transactions = if (startDate != null && endDate != null) {
-                transactionRepository.getTransactionsByDateRange(startDate, endDate).first()
+            // Get all transactions first
+            var transactions = if (filters.startDate != null && filters.endDate != null) {
+                transactionRepository.getTransactionsByDateRange(filters.startDate, filters.endDate).first()
             } else {
                 transactionRepository.getAllTransactions().first()
             }
             
+            // Apply category filter
+            filters.categoryIds?.let { categoryIds ->
+                if (categoryIds.isNotEmpty()) {
+                    transactions = transactions.filter { 
+                        it.categoryId in categoryIds || (it.categoryId == null && "uncategorized" in categoryIds)
+                    }
+                }
+            }
+            
+            // Apply account filter
+            filters.accountIds?.let { accountIds ->
+                if (accountIds.isNotEmpty()) {
+                    transactions = transactions.filter { 
+                        it.accountId in accountIds || (it.accountId == null && "default" in accountIds)
+                    }
+                }
+            }
+            
+            // Apply transaction type filter
+            filters.transactionTypes?.let { types ->
+                if (types.isNotEmpty()) {
+                    transactions = transactions.filter { it.type in types }
+                }
+            }
+            
             val categories = categoryRepository.getAllCategories().first()
             val categoryMap = categories.associateBy { it.id }
+            
+            val accounts = accountRepository.getAllAccounts().first()
+            val accountMap = accounts.associateBy { it.id }
             
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -45,21 +92,37 @@ class ExportManager @Inject constructor(
             
             FileWriter(file).use { writer ->
                 // Header
-                writer.append("Date,Time,Type,Category,Amount,Note\n")
+                val headers = mutableListOf("Date", "Time", "Type", "Category", "Amount")
+                if (filters.includeAccountInfo) {
+                    headers.add("Account")
+                }
+                if (filters.includeNotes) {
+                    headers.add("Note")
+                }
+                writer.append(headers.joinToString(",") + "\n")
                 
                 // Data rows
                 transactions.forEach { transaction ->
                     val date = Date(transaction.date)
                     val category = transaction.categoryId?.let { categoryMap[it]?.name } ?: "Uncategorized"
+                    val account = transaction.accountId?.let { accountMap[it]?.name } ?: "Default"
                     val type = if (transaction.type == TransactionType.EXPENSE) "Expense" else "Income"
                     val note = transaction.note?.replace(",", ";")?.replace("\n", " ") ?: ""
                     
-                    writer.append("${dateFormat.format(date)},")
-                    writer.append("${timeFormat.format(date)},")
-                    writer.append("$type,")
-                    writer.append("$category,")
-                    writer.append("${transaction.amount},")
-                    writer.append("\"$note\"\n")
+                    val row = mutableListOf(
+                        dateFormat.format(date),
+                        timeFormat.format(date),
+                        type,
+                        category,
+                        transaction.amount.toString()
+                    )
+                    if (filters.includeAccountInfo) {
+                        row.add(account)
+                    }
+                    if (filters.includeNotes) {
+                        row.add("\"$note\"")
+                    }
+                    writer.append(row.joinToString(",") + "\n")
                 }
             }
             
@@ -73,6 +136,51 @@ class ExportManager @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    
+    /**
+     * Get export statistics for preview
+     */
+    suspend fun getExportPreview(filters: ExportFilters): ExportPreview {
+        var transactions = if (filters.startDate != null && filters.endDate != null) {
+            transactionRepository.getTransactionsByDateRange(filters.startDate, filters.endDate).first()
+        } else {
+            transactionRepository.getAllTransactions().first()
+        }
+        
+        // Apply category filter
+        filters.categoryIds?.let { categoryIds ->
+            if (categoryIds.isNotEmpty()) {
+                transactions = transactions.filter { 
+                    it.categoryId in categoryIds || (it.categoryId == null && "uncategorized" in categoryIds)
+                }
+            }
+        }
+        
+        // Apply account filter
+        filters.accountIds?.let { accountIds ->
+            if (accountIds.isNotEmpty()) {
+                transactions = transactions.filter { 
+                    it.accountId in accountIds || (it.accountId == null && "default" in accountIds)
+                }
+            }
+        }
+        
+        // Apply transaction type filter
+        filters.transactionTypes?.let { types ->
+            if (types.isNotEmpty()) {
+                transactions = transactions.filter { it.type in types }
+            }
+        }
+        
+        val totalExpenses = transactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val totalIncome = transactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        
+        return ExportPreview(
+            transactionCount = transactions.size,
+            totalExpenses = totalExpenses,
+            totalIncome = totalIncome
+        )
     }
     
     /**
@@ -95,6 +203,8 @@ class ExportManager @Inject constructor(
             val transactions = transactionRepository.getTransactionsByDateRange(startDate, endDate).first()
             val categories = categoryRepository.getAllCategories().first()
             val categoryMap = categories.associateBy { it.id }
+            val accounts = accountRepository.getAllAccounts().first()
+            val accountMap = accounts.associateBy { it.id }
             
             val totalExpenses = transactions
                 .filter { it.type == TransactionType.EXPENSE }
@@ -107,6 +217,13 @@ class ExportManager @Inject constructor(
             val categorySpending = transactions
                 .filter { it.type == TransactionType.EXPENSE && it.categoryId != null }
                 .groupBy { it.categoryId }
+                .mapValues { (_, txns) -> txns.sumOf { it.amount } }
+                .toList()
+                .sortedByDescending { it.second }
+            
+            val accountSpending = transactions
+                .filter { it.type == TransactionType.EXPENSE }
+                .groupBy { it.accountId }
                 .mapValues { (_, txns) -> txns.sumOf { it.amount } }
                 .toList()
                 .sortedByDescending { it.second }
@@ -137,6 +254,15 @@ class ExportManager @Inject constructor(
                     val categoryName = categoryId?.let { categoryMap[it]?.name } ?: "Other"
                     val percentage = if (totalExpenses > 0) (amount / totalExpenses * 100) else 0.0
                     writer.append("${categoryName.padEnd(20)} ₹${String.format("%,.2f", amount).padStart(12)} (${String.format("%.1f", percentage)}%)\n")
+                }
+                
+                writer.append("\n💳 EXPENSES BY ACCOUNT\n")
+                writer.append("───────────────────────────────────────\n")
+                
+                accountSpending.forEach { (accountId, amount) ->
+                    val accountName = accountId?.let { accountMap[it]?.name } ?: "Default"
+                    val percentage = if (totalExpenses > 0) (amount / totalExpenses * 100) else 0.0
+                    writer.append("${accountName.padEnd(20)} ₹${String.format("%,.2f", amount).padStart(12)} (${String.format("%.1f", percentage)}%)\n")
                 }
                 
                 writer.append("\n═══════════════════════════════════════\n")
@@ -171,3 +297,12 @@ class ExportManager @Inject constructor(
         context.startActivity(chooser)
     }
 }
+
+/**
+ * Preview data for export
+ */
+data class ExportPreview(
+    val transactionCount: Int,
+    val totalExpenses: Double,
+    val totalIncome: Double
+)

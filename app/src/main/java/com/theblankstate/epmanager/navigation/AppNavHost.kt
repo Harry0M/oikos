@@ -22,6 +22,7 @@ import com.theblankstate.epmanager.ui.friends.FriendsScreen
 import com.theblankstate.epmanager.ui.goals.GoalsScreen
 import com.theblankstate.epmanager.ui.home.HomeScreen
 import com.theblankstate.epmanager.ui.notifications.NotificationSettingsScreen
+import com.theblankstate.epmanager.ui.notifications.NotificationCenterScreen
 import com.theblankstate.epmanager.ui.onboarding.OnboardingScreen
 import com.theblankstate.epmanager.ui.recurring.RecurringScreen
 import com.theblankstate.epmanager.ui.settings.SettingsScreen
@@ -82,6 +83,9 @@ fun AppNavHost(
                 },
                 onNavigateToHistory = { type, id ->
                     navController.navigate("${Screen.Transactions.route}?type=$type&id=$id")
+                },
+                onNavigateToNotifications = {
+                    navController.navigate(Screen.NotificationCenter.route)
                 }
             )
         }
@@ -224,6 +228,14 @@ fun AppNavHost(
                 },
                 onNavigateToHistory = { goalId ->
                     navController.navigate("${Screen.Transactions.route}?type=GOAL&id=$goalId")
+                }
+            )
+        }
+        
+        composable(Screen.NotificationCenter.route) {
+            NotificationCenterScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

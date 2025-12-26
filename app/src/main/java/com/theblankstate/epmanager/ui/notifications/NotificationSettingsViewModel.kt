@@ -17,6 +17,9 @@ data class NotificationSettingsUiState(
     val hasPermission: Boolean = false,
     val budgetAlerts: Boolean = true,
     val recurringReminders: Boolean = true,
+    val debtReminders: Boolean = true,
+    val savingsReminders: Boolean = true,
+    val splitReminders: Boolean = true,
     val dailyInsights: Boolean = false
 )
 
@@ -39,6 +42,9 @@ class NotificationSettingsViewModel @Inject constructor(
             it.copy(
                 budgetAlerts = prefs.getBoolean("budget_alerts", true),
                 recurringReminders = prefs.getBoolean("recurring_reminders", true),
+                debtReminders = prefs.getBoolean("debt_reminders", true),
+                savingsReminders = prefs.getBoolean("savings_reminders", true),
+                splitReminders = prefs.getBoolean("split_reminders", true),
                 dailyInsights = prefs.getBoolean("daily_insights", false)
             )
         }
@@ -65,6 +71,21 @@ class NotificationSettingsViewModel @Inject constructor(
         savePreference("recurring_reminders", enabled)
     }
     
+    fun setDebtReminders(enabled: Boolean) {
+        _uiState.update { it.copy(debtReminders = enabled) }
+        savePreference("debt_reminders", enabled)
+    }
+    
+    fun setSavingsReminders(enabled: Boolean) {
+        _uiState.update { it.copy(savingsReminders = enabled) }
+        savePreference("savings_reminders", enabled)
+    }
+    
+    fun setSplitReminders(enabled: Boolean) {
+        _uiState.update { it.copy(splitReminders = enabled) }
+        savePreference("split_reminders", enabled)
+    }
+    
     fun setDailyInsights(enabled: Boolean) {
         _uiState.update { it.copy(dailyInsights = enabled) }
         savePreference("daily_insights", enabled)
@@ -72,8 +93,7 @@ class NotificationSettingsViewModel @Inject constructor(
     
     fun sendTestNotification() {
         viewModelScope.launch {
-            // Trigger budget check as a test
-            notificationManager.checkBudgetAlerts()
+            notificationManager.sendTestNotification()
         }
     }
 }

@@ -25,6 +25,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.theblankstate.epmanager.data.sync.SettlementSyncManager
+import com.theblankstate.epmanager.data.sync.NotificationWorker
 import com.theblankstate.epmanager.navigation.AppNavHost
 import com.theblankstate.epmanager.navigation.BottomNavItem
 import com.theblankstate.epmanager.navigation.Screen
@@ -45,6 +46,9 @@ class MainActivity : ComponentActivity() {
         
         // Start listening for settlement notifications from linked friends
         settlementSyncManager.startListening()
+        
+        // Schedule periodic notification checks
+        NotificationWorker.schedule(this)
         
         enableEdgeToEdge()
         setContent {

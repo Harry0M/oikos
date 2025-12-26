@@ -15,6 +15,7 @@ sealed class Screen(val route: String) {
     data object Recurring : Screen("recurring")
     data object Export : Screen("export")
     data object Goals : Screen("goals")
+    data object NotificationCenter : Screen("notification_center")
     data object NotificationSettings : Screen("notification_settings")
     data object AIInsights : Screen("ai_insights")
     data object Subscriptions : Screen("subscriptions")

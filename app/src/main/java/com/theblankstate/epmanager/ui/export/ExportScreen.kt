@@ -1,6 +1,9 @@
 package com.theblankstate.epmanager.ui.export
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -12,10 +15,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.ui.theme.*
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ExportScreen(
     onNavigateBack: () -> Unit,
@@ -23,6 +27,8 @@ fun ExportScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var isSelectingStartDate by remember { mutableStateOf(true) }
     
     // Handle messages
     LaunchedEffect(uiState.exportSuccess, uiState.exportError) {
@@ -33,6 +39,56 @@ fun ExportScreen(
         uiState.exportError?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearMessages()
+        }
+    }
+    
+    // Date picker dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = if (isSelectingStartDate) 
+                uiState.customStartDate ?: System.currentTimeMillis() 
+            else 
+                uiState.customEndDate ?: System.currentTimeMillis()
+        )
+        
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { date ->
+                        if (isSelectingStartDate) {
+                            viewModel.setCustomDateRange(
+                                date,
+                                uiState.customEndDate ?: System.currentTimeMillis()
+                            )
+                            isSelectingStartDate = false
+                        } else {
+                            viewModel.setCustomDateRange(
+                                uiState.customStartDate ?: date,
+                                date
+                            )
+                            showDatePicker = false
+                        }
+                    }
+                }) {
+                    Text(if (isSelectingStartDate) "Next" else "Done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                title = {
+                    Text(
+                        text = if (isSelectingStartDate) "Select Start Date" else "Select End Date",
+                        modifier = Modifier.padding(Spacing.md)
+                    )
+                }
+            )
         }
     }
     
@@ -61,53 +117,317 @@ fun ExportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            // Export All Transactions
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(Spacing.lg)
-                ) {
+            // ==================== DATE RANGE ====================
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.DateRange,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text(
+                            text = "Time Period",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        DateRangeType.entries.forEach { type ->
+                            FilterChip(
+                                selected = uiState.dateRangeType == type,
+                                onClick = { 
+                                    if (type == DateRangeType.CUSTOM) {
+                                        isSelectingStartDate = true
+                                        showDatePicker = true
+                                    } else {
+                                        viewModel.setDateRangeType(type)
+                                    }
+                                },
+                                label = { Text(getDateRangeLabel(type)) }
+                            )
+                        }
+                    }
+                    
+                    // Show selected custom date range
+                    if (uiState.dateRangeType == DateRangeType.CUSTOM && 
+                        uiState.customStartDate != null && uiState.customEndDate != null) {
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                        Text(
+                            text = "${dateFormat.format(Date(uiState.customStartDate!!))} - ${dateFormat.format(Date(uiState.customEndDate!!))}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            // ==================== TRANSACTION TYPE ====================
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.SwapVert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text(
+                            text = "Transaction Type",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        FilterChip(
+                            selected = uiState.includeExpenses,
+                            onClick = { viewModel.toggleExpenses() },
+                            label = { Text("Expenses") },
+                            leadingIcon = {
+                                if (uiState.includeExpenses) {
+                                    Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(18.dp))
+                                }
+                            }
+                        )
+                        FilterChip(
+                            selected = uiState.includeIncome,
+                            onClick = { viewModel.toggleIncome() },
+                            label = { Text("Income") },
+                            leadingIcon = {
+                                if (uiState.includeIncome) {
+                                    Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(18.dp))
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // ==================== CATEGORIES ====================
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.TableChart,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.md))
-                        Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Category,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.sm))
                             Text(
-                                text = "Export to CSV",
+                                text = "Categories",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Text(
-                                text = "All transactions as spreadsheet",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Row {
+                            TextButton(onClick = { viewModel.selectAllCategories() }) {
+                                Text("All", style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(onClick = { viewModel.clearAllCategories() }) {
+                                Text("None", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        // Uncategorized option
+                        FilterChip(
+                            selected = "uncategorized" in uiState.selectedCategoryIds,
+                            onClick = { viewModel.toggleCategory("uncategorized") },
+                            label = { Text("Uncategorized") }
+                        )
+                        
+                        uiState.categories.forEach { category ->
+                            FilterChip(
+                                selected = category.id in uiState.selectedCategoryIds,
+                                onClick = { viewModel.toggleCategory(category.id) },
+                                label = { Text("${category.icon} ${category.name}") }
                             )
+                        }
+                    }
+                }
+            }
+            
+            // ==================== ACCOUNTS ====================
+            if (uiState.accounts.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(Spacing.lg)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(Spacing.sm))
+                                Text(
+                                    text = "Accounts",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Row {
+                                TextButton(onClick = { viewModel.selectAllAccounts() }) {
+                                    Text("All", style = MaterialTheme.typography.labelSmall)
+                                }
+                                TextButton(onClick = { viewModel.clearAllAccounts() }) {
+                                    Text("None", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                        
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            FilterChip(
+                                selected = "default" in uiState.selectedAccountIds,
+                                onClick = { viewModel.toggleAccount("default") },
+                                label = { Text("Default") }
+                            )
+                            
+                            uiState.accounts.forEach { account ->
+                                FilterChip(
+                                    selected = account.id in uiState.selectedAccountIds,
+                                    onClick = { viewModel.toggleAccount(account.id) },
+                                    label = { Text("${account.icon} ${account.name}") }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // ==================== EXPORT OPTIONS ====================
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
+                    Text(
+                        text = "Export Options",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Include Notes")
+                        Switch(
+                            checked = uiState.includeNotes,
+                            onCheckedChange = { viewModel.toggleIncludeNotes() }
+                        )
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Include Account Info")
+                        Switch(
+                            checked = uiState.includeAccountInfo,
+                            onCheckedChange = { viewModel.toggleIncludeAccountInfo() }
+                        )
+                    }
+                }
+            }
+            
+            // ==================== PREVIEW & EXPORT ====================
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
+                    Text(
+                        text = "Export Preview",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    
+                    uiState.preview?.let { preview ->
+                        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "${preview.transactionCount}",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Transactions",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = currencyFormat.format(preview.totalExpenses),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = "Expenses",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = currencyFormat.format(preview.totalIncome),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Income",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                     
                     Spacer(modifier = Modifier.height(Spacing.md))
                     
-                    Text(
-                        text = "Exports all your transactions in CSV format that can be opened in Excel, Google Sheets, or any spreadsheet app.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    
                     Button(
-                        onClick = { viewModel.exportAllToCSV() },
-                        enabled = !uiState.isExporting,
+                        onClick = { viewModel.exportFiltered() },
+                        enabled = !uiState.isExporting && (uiState.preview?.transactionCount ?: 0) > 0,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (uiState.isExporting) {
@@ -117,27 +437,18 @@ fun ExportScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Filled.FileDownload,
-                                contentDescription = null
-                            )
+                            Icon(Icons.Filled.FileDownload, contentDescription = null)
                             Spacer(modifier = Modifier.width(Spacing.sm))
-                            Text("Export All Transactions")
+                            Text("Export to CSV")
                         }
                     }
                 }
             }
             
-            // Monthly Report
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(Spacing.lg)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            // ==================== MONTHLY REPORT ====================
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Spacing.lg)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Filled.Assessment,
                             contentDescription = null,
@@ -152,7 +463,7 @@ fun ExportScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Summary with category breakdown",
+                                text = "Summary with category & account breakdown",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -245,43 +556,26 @@ fun ExportScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Filled.Share,
-                                contentDescription = null
-                            )
+                            Icon(Icons.Filled.Share, contentDescription = null)
                             Spacer(modifier = Modifier.width(Spacing.sm))
                             Text("Generate & Share Report")
                         }
                     }
                 }
             }
-            
-            // Info card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(Spacing.md),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Text(
-                        text = "Exported files open in your device's share menu. You can save them to files, send via email, or share to any app.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
         }
+    }
+}
+
+private fun getDateRangeLabel(type: DateRangeType): String {
+    return when (type) {
+        DateRangeType.TODAY -> "Today"
+        DateRangeType.THIS_WEEK -> "This Week"
+        DateRangeType.THIS_MONTH -> "This Month"
+        DateRangeType.LAST_MONTH -> "Last Month"
+        DateRangeType.THIS_YEAR -> "This Year"
+        DateRangeType.ALL_TIME -> "All Time"
+        DateRangeType.CUSTOM -> "Custom"
     }
 }
 

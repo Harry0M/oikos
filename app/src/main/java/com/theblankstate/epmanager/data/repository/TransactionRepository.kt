@@ -97,6 +97,36 @@ class TransactionRepository @Inject constructor(
         return transactionDao.getTotalByTypeInRange(TransactionType.INCOME, startOfMonth, endOfMonth)
     }
     
+    fun getWeeklyExpenses(): Flow<Double?> {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startOfWeek = calendar.timeInMillis
+        calendar.add(Calendar.WEEK_OF_YEAR, 1)
+        val endOfWeek = calendar.timeInMillis
+        
+        return transactionDao.getTotalByTypeInRange(TransactionType.EXPENSE, startOfWeek, endOfWeek)
+    }
+    
+    fun getWeeklyIncome(): Flow<Double?> {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startOfWeek = calendar.timeInMillis
+        calendar.add(Calendar.WEEK_OF_YEAR, 1)
+        val endOfWeek = calendar.timeInMillis
+        
+        return transactionDao.getTotalByTypeInRange(TransactionType.INCOME, startOfWeek, endOfWeek)
+    }
+    
     suspend fun getCategorySpendingThisMonth(categoryId: String): Double {
         val calendar = Calendar.getInstance().apply {
             set(Calendar.DAY_OF_MONTH, 1)

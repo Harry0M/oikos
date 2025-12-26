@@ -94,6 +94,7 @@ fun HomeScreen(
     onNavigateToSplit: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
     onNavigateToCategories: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onNavigateToHistory: (String, String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel(),
     currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
@@ -177,6 +178,17 @@ fun HomeScreen(
                                     imageVector = Icons.Filled.AccountBalance,
                                     contentDescription = "Accounts",
                                     tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            
+                            // Notifications button
+                            IconButton(
+                                onClick = onNavigateToNotifications
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             

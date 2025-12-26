@@ -17,6 +17,7 @@ import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import com.theblankstate.epmanager.data.local.dao.SplitDao
 import com.theblankstate.epmanager.data.local.dao.TermsAcceptanceDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
+import com.theblankstate.epmanager.data.local.dao.NotificationDao
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Budget
 import com.theblankstate.epmanager.data.model.Category
@@ -35,6 +36,7 @@ import com.theblankstate.epmanager.data.model.SplitExpense
 import com.theblankstate.epmanager.data.model.SplitGroup
 import com.theblankstate.epmanager.data.model.TermsAcceptance
 import com.theblankstate.epmanager.data.model.Transaction
+import com.theblankstate.epmanager.data.model.AppNotification
 
 @Database(
     entities = [
@@ -55,9 +57,10 @@ import com.theblankstate.epmanager.data.model.Transaction
         FriendRequest::class,
         Debt::class,
         DebtPayment::class,
-        TermsAcceptance::class
+        TermsAcceptance::class,
+        AppNotification::class
     ],
-    version = 15, // Added TermsAcceptance for T&C tracking
+    version = 16, // Added AppNotification for notification history
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -72,6 +75,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun friendDao(): FriendDao
     abstract fun debtDao(): DebtDao
     abstract fun termsAcceptanceDao(): TermsAcceptanceDao
+    abstract fun notificationDao(): NotificationDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"
@@ -101,13 +105,31 @@ abstract class ExpenseDatabase : RoomDatabase() {
                         """.trimIndent())
                     }
                 }
+                
+                val MIGRATION_15_16 = object : Migration(15, 16) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        database.execSQL("""
+                            CREATE TABLE IF NOT EXISTS app_notifications (
+                                id TEXT PRIMARY KEY NOT NULL,
+                                type TEXT NOT NULL,
+                                title TEXT NOT NULL,
+                                message TEXT NOT NULL,
+                                createdAt INTEGER NOT NULL,
+                                isRead INTEGER NOT NULL DEFAULT 0,
+                                actionData TEXT
+                            )
+                        """.trimIndent())
+                        database.execSQL("CREATE INDEX IF NOT EXISTS index_app_notifications_createdAt ON app_notifications(createdAt)")
+                        database.execSQL("CREATE INDEX IF NOT EXISTS index_app_notifications_isRead ON app_notifications(isRead)")
+                    }
+                }
 
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

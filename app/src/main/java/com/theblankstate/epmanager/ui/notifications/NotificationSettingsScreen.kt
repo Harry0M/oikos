@@ -152,9 +152,45 @@ fun NotificationSettingsScreen(
             NotificationToggleItem(
                 icon = Icons.Filled.Event,
                 title = "Bill Reminders",
-                subtitle = "Reminders for upcoming recurring expenses",
+                subtitle = "Reminders for upcoming recurring expenses and subscriptions",
                 checked = uiState.recurringReminders,
                 onCheckedChange = { viewModel.setRecurringReminders(it) },
+                enabled = uiState.hasPermission
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Debt & Credit Reminders
+            NotificationToggleItem(
+                icon = Icons.Filled.CreditCard,
+                title = "Debt & Credit Reminders",
+                subtitle = "Reminders for debts you owe and money owed to you",
+                checked = uiState.debtReminders,
+                onCheckedChange = { viewModel.setDebtReminders(it) },
+                enabled = uiState.hasPermission
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Savings Goal Notifications
+            NotificationToggleItem(
+                icon = Icons.Filled.Savings,
+                title = "Savings Goals",
+                subtitle = "Milestones and deadline reminders for your savings goals",
+                checked = uiState.savingsReminders,
+                onCheckedChange = { viewModel.setSavingsReminders(it) },
+                enabled = uiState.hasPermission
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Split Payment Notifications
+            NotificationToggleItem(
+                icon = Icons.Filled.Groups,
+                title = "Split Payments",
+                subtitle = "Reminders for split expense settlements and dues",
+                checked = uiState.splitReminders,
+                onCheckedChange = { viewModel.setSplitReminders(it) },
                 enabled = uiState.hasPermission
             )
             
@@ -164,7 +200,7 @@ fun NotificationSettingsScreen(
             NotificationToggleItem(
                 icon = Icons.Filled.Insights,
                 title = "Daily Insights",
-                subtitle = "Daily summary of your spending",
+                subtitle = "Daily summary of your spending and trends",
                 checked = uiState.dailyInsights,
                 onCheckedChange = { viewModel.setDailyInsights(it) },
                 enabled = uiState.hasPermission
