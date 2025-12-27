@@ -1,5 +1,6 @@
 package com.theblankstate.epmanager.data.local.dao
 
+import androidx.paging.PagingSource
 import androidx.room.*
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.TransactionType
@@ -49,6 +50,33 @@ interface TransactionDao {
     
     @Query("SELECT * FROM transactions ORDER BY date DESC LIMIT :limit")
     fun getRecentTransactions(limit: Int): Flow<List<Transaction>>
+    
+    // ========== PAGING OPERATIONS ==========
+    
+    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    fun getAllTransactionsPaged(): PagingSource<Int, Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE categoryId = :categoryId ORDER BY date DESC")
+    fun getTransactionsByCategoryPaged(categoryId: String): PagingSource<Int, Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY date DESC")
+    fun getTransactionsByAccountPaged(accountId: String): PagingSource<Int, Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE goalId = :goalId ORDER BY date DESC")
+    fun getTransactionsByGoalPaged(goalId: String): PagingSource<Int, Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE debtId = :debtId ORDER BY date DESC")
+    fun getTransactionsByDebtPaged(debtId: String): PagingSource<Int, Transaction>
+    
+    @Query("SELECT * FROM transactions WHERE recurringId = :recurringId ORDER BY date DESC")
+    fun getTransactionsByRecurringPaged(recurringId: String): PagingSource<Int, Transaction>
+    
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE note LIKE '%' || :query || '%' 
+        ORDER BY date DESC
+    """)
+    fun searchTransactionsPaged(query: String): PagingSource<Int, Transaction>
     
     // ========== AGGREGATIONS ==========
     
