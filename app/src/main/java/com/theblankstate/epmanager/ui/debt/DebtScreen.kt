@@ -22,9 +22,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Debt
 import com.theblankstate.epmanager.data.model.DebtType
 import com.theblankstate.epmanager.data.model.Friend
+import com.theblankstate.epmanager.ui.components.AccountSelector
 import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 import java.text.SimpleDateFormat
@@ -173,10 +175,11 @@ fun DebtScreen(
     if (uiState.showPaymentSheet && uiState.selectedDebt != null) {
         AddPaymentSheet(
             debt = uiState.selectedDebt!!,
+            accounts = uiState.accounts,
             currencySymbol = currencySymbol,
             onDismiss = { viewModel.hidePaymentSheet() },
-            onConfirm = { amount, note ->
-                viewModel.addPayment(amount, null, note)
+            onConfirm = { amount, accountId, note ->
+                viewModel.addPayment(amount, accountId, null, note)
             }
         )
     }
@@ -754,12 +757,14 @@ private fun DebtDetailSheet(
 @Composable
 private fun AddPaymentSheet(
     debt: Debt,
+    accounts: List<Account>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, note: String?) -> Unit
+    onConfirm: (amount: Double, accountId: String?, note: String?) -> Unit
 ) {
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     ModalBottomSheet(
@@ -815,6 +820,26 @@ private fun AddPaymentSheet(
                 shape = InputFieldShape
             )
             
+            // Account selection
+            if (accounts.isNotEmpty()) {
+                AccountSelector(
+                    accounts = accounts,
+                    selectedAccount = selectedAccount,
+                    onAccountSelected = { selectedAccount = it },
+                    label = if (debt.type == DebtType.DEBT) "Pay from" else "Receive to",
+                    isOptional = false
+                )
+                
+                Text(
+                    text = if (debt.type == DebtType.DEBT) 
+                        "Money will be deducted from selected account" 
+                    else 
+                        "Money will be added to selected account",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
@@ -841,7 +866,7 @@ private fun AddPaymentSheet(
                     onClick = {
                         val amountValue = amount.toDoubleOrNull()
                         if (amountValue != null && amountValue > 0) {
-                            onConfirm(amountValue, note.takeIf { it.isNotBlank() })
+                            onConfirm(amountValue, selectedAccount?.id, note.takeIf { it.isNotBlank() })
                         }
                     },
                     modifier = Modifier.weight(1f),

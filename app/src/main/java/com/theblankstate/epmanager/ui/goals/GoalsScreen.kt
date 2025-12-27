@@ -20,8 +20,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.GoalPresets
 import com.theblankstate.epmanager.data.model.SavingsGoal
+import com.theblankstate.epmanager.ui.components.AccountSelector
 import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
 
@@ -141,9 +143,12 @@ fun GoalsScreen(
     uiState.showContributeDialog?.let { goal ->
         ContributeDialog(
             goal = goal,
+            accounts = uiState.accounts,
             currencySymbol = currencySymbol,
             onDismiss = { viewModel.hideContributeDialog() },
-            onContribute = { amount -> viewModel.addContribution(goal.id, amount) }
+            onContribute = { amount, accountId -> 
+                viewModel.addContribution(goal.id, amount, accountId) 
+            }
         )
     }
 }
@@ -604,11 +609,13 @@ private fun AddGoalSheet(
 @Composable
 private fun ContributeDialog(
     goal: SavingsGoal,
+    accounts: List<Account>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onContribute: (Double) -> Unit
+    onContribute: (Double, String?) -> Unit
 ) {
     var amount by remember { mutableStateOf("") }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -627,7 +634,7 @@ private fun ContributeDialog(
                     value = amount,
                     onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text("Amount to Add") },
-                    prefix = { Text("₹") },
+                    prefix = { Text(currencySymbol) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -641,16 +648,36 @@ private fun ContributeDialog(
                     listOf(500, 1000, 5000).forEach { quickAmount ->
                         AssistChip(
                             onClick = { amount = quickAmount.toString() },
-                            label = { Text("₹$quickAmount") }
+                            label = { Text("$currencySymbol$quickAmount") }
                         )
                     }
+                }
+                
+                // Account selection
+                if (accounts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    AccountSelector(
+                        accounts = accounts,
+                        selectedAccount = selectedAccount,
+                        onAccountSelected = { selectedAccount = it },
+                        label = "Pay from account",
+                        isOptional = false
+                    )
+                    
+                    Text(
+                        text = "Money will be deducted from selected account",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Spacing.xs)
+                    )
                 }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    amount.toDoubleOrNull()?.let { onContribute(it) }
+                    amount.toDoubleOrNull()?.let { onContribute(it, selectedAccount?.id) }
                 },
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true
             ) {

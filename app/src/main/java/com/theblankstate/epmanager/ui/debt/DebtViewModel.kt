@@ -25,6 +25,7 @@ data class DebtUiState(
     val totalDebtOwed: Double = 0.0,
     val totalCreditOwed: Double = 0.0,
     val friends: List<Friend> = emptyList(),
+    val accounts: List<com.theblankstate.epmanager.data.model.Account> = emptyList(),
     val isLoading: Boolean = true,
     val selectedDebt: Debt? = null,
     val selectedDebtPayments: List<DebtPayment> = emptyList(),
@@ -89,6 +90,13 @@ class DebtViewModel @Inject constructor(
                 .collect { friends ->
                     _uiState.update { it.copy(friends = friends) }
                 }
+        }
+        
+        // Load accounts
+        viewModelScope.launch {
+            accountRepository.getAllAccounts().collect { accounts ->
+                _uiState.update { it.copy(accounts = accounts) }
+            }
         }
     }
     
@@ -164,7 +172,7 @@ class DebtViewModel @Inject constructor(
         }
     }
     
-    fun addPayment(amount: Double, transactionId: String? = null, note: String? = null) {
+    fun addPayment(amount: Double, accountId: String? = null, transactionId: String? = null, note: String? = null) {
         val debt = _uiState.value.selectedDebt ?: return
         
         viewModelScope.launch {
@@ -176,15 +184,14 @@ class DebtViewModel @Inject constructor(
             else 
                 "Received from ${debt.personName}"
             
-            // Get default account
-            val defaultAccount = accountRepository.getDefaultAccount()
-            val accountId = defaultAccount?.id ?: "cash"
+            // Use provided accountId or fall back to default account
+            val finalAccountId = accountId ?: accountRepository.getDefaultAccount()?.id ?: "cash"
             
             // Create the transaction
             val transaction = Transaction(
                 amount = amount,
                 categoryId = categoryId,
-                accountId = accountId,
+                accountId = finalAccountId,
                 type = transactionType,
                 date = System.currentTimeMillis(),
                 note = transactionNote
@@ -193,7 +200,7 @@ class DebtViewModel @Inject constructor(
             
             // Update account balance
             val balanceChange = if (transactionType == TransactionType.EXPENSE) -amount else amount
-            accountRepository.updateBalance(accountId, balanceChange)
+            accountRepository.updateBalance(finalAccountId, balanceChange)
             
             // Record the debt payment with linked transaction ID
             debtRepository.addPayment(debt.id, amount, transaction.id, note)

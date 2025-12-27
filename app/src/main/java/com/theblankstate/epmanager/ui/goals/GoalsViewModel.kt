@@ -19,6 +19,7 @@ import javax.inject.Inject
 data class GoalsUiState(
     val activeGoals: List<SavingsGoal> = emptyList(),
     val completedGoals: List<SavingsGoal> = emptyList(),
+    val accounts: List<com.theblankstate.epmanager.data.model.Account> = emptyList(),
     val totalSaved: Double = 0.0,
     val totalTarget: Double = 0.0,
     val isLoading: Boolean = true,
@@ -57,6 +58,12 @@ class GoalsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getCompletedGoals().collect { goals ->
                 _uiState.update { it.copy(completedGoals = goals) }
+            }
+        }
+        
+        viewModelScope.launch {
+            accountRepository.getAllAccounts().collect { accounts ->
+                _uiState.update { it.copy(accounts = accounts) }
             }
         }
         
@@ -112,15 +119,14 @@ class GoalsViewModel @Inject constructor(
         }
     }
     
-    fun addContribution(goalId: String, amount: Double) {
+    fun addContribution(goalId: String, amount: Double, accountId: String? = null) {
         viewModelScope.launch {
             // Get the goal details for the note/category
             val goal = repository.getGoalById(goalId)
             
             if (goal != null) {
-                // Get Default Account (or null)
-                val defaultAccount = accountRepository.getDefaultAccount()
-                val accountId = defaultAccount?.id
+                // Use provided accountId or fall back to default account
+                val finalAccountId = accountId ?: accountRepository.getDefaultAccount()?.id
                 
                 // Try to get location
                 val location = locationHelper.getCurrentLocation()
@@ -129,12 +135,11 @@ class GoalsViewModel @Inject constructor(
                 // Create Transaction
                 val transaction = Transaction(
                     amount = amount,
-                    categoryId = "goals", // Matches CategoryRepository.ensureSplitCategoriesExist
-                    accountId = accountId,
+                    categoryId = "goals",
+                    accountId = finalAccountId,
                     type = TransactionType.EXPENSE,
                     date = System.currentTimeMillis(),
                     note = "Contribution to ${goal.name}",
-                    // Location metadata
                     latitude = location?.latitude,
                     longitude = location?.longitude,
                     locationName = locationName
@@ -142,8 +147,8 @@ class GoalsViewModel @Inject constructor(
                 transactionRepository.insertTransaction(transaction)
                 
                 // Update Account Balance
-                if (accountId != null) {
-                    accountRepository.updateBalance(accountId, -amount)
+                if (finalAccountId != null) {
+                    accountRepository.updateBalance(finalAccountId, -amount)
                 }
                 
                 // Add to Goal

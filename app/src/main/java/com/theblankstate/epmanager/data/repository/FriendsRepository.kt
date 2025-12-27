@@ -264,7 +264,8 @@ class FriendsRepository @Inject constructor(
             }
             
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.e("FriendsRepo", "Error getting incoming requests: ${error.message}")
+                trySend(emptyList())
             }
         }
         
@@ -301,7 +302,8 @@ class FriendsRepository @Inject constructor(
             }
             
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.e("FriendsRepo", "Error getting friends: ${error.message}")
+                trySend(emptyList())
             }
         }
         
@@ -420,7 +422,8 @@ class FriendsRepository @Inject constructor(
             }
             
             override fun onCancelled(error: DatabaseError) {
-                close(error.toException())
+                android.util.Log.e("FriendsRepo", "Error getting settlement notifications: ${error.message}")
+                trySend(emptyList())
             }
         }
         
