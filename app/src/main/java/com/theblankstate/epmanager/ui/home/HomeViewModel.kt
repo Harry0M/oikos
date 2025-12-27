@@ -79,6 +79,7 @@ data class HomeUiState(
     val recentTransactions: List<TransactionWithCategory> = emptyList(),
     val upcomingDues: List<UpcomingDue> = emptyList(),
     val selectedDue: UpcomingDue? = null,
+    val accounts: List<com.theblankstate.epmanager.data.model.Account> = emptyList(),
     val budgetAlerts: List<BudgetWithSpending> = emptyList(),
     val isLoading: Boolean = true
 )
@@ -103,6 +104,7 @@ class HomeViewModel @Inject constructor(
         loadDashboardData()
         loadUpcomingDues()
         loadBudgetAlerts()
+        loadAccounts()
     }
     
     private fun initializeData() {
@@ -169,6 +171,14 @@ class HomeViewModel @Inject constructor(
                 .collect { balance ->
                     _uiState.update { it.copy(totalBalance = balance ?: 0.0) }
                 }
+        }
+    }
+    
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            accountRepository.getAllAccounts().collect { accounts ->
+                _uiState.update { it.copy(accounts = accounts) }
+            }
         }
     }
     
@@ -319,16 +329,15 @@ class HomeViewModel @Inject constructor(
      * Pay subscription/recurring expense early
      * Creates a transaction and updates the next due date
      */
-    fun paySubscriptionEarly(due: UpcomingDue) {
+    fun paySubscriptionEarly(due: UpcomingDue, accountId: String? = null) {
         viewModelScope.launch {
             when (due) {
                 is UpcomingDue.SubscriptionDue, is UpcomingDue.ExpenseDue -> {
                     // Get the recurring expense
                     val expense = recurringRepository.getRecurringExpenseById(due.id)
                     if (expense != null) {
-                        // Create transaction
-                        val defaultAccount = accountRepository.getDefaultAccount()
-                        val accountId = defaultAccount?.id ?: "cash"
+                        // Use provided accountId or fall back to default account
+                        val finalAccountId = accountId ?: accountRepository.getDefaultAccount()?.id ?: "cash"
                         
                         // Try to get location
                         val location = locationHelper.getCurrentLocation()
@@ -337,12 +346,11 @@ class HomeViewModel @Inject constructor(
                         val transaction = Transaction(
                             amount = due.amount,
                             categoryId = expense.categoryId ?: "expense",
-                            accountId = accountId,
+                            accountId = finalAccountId,
                             type = TransactionType.EXPENSE,
                             date = System.currentTimeMillis(),
                             note = "Early payment: ${due.title}",
                             recurringId = due.id,
-                            // Location metadata
                             latitude = location?.latitude,
                             longitude = location?.longitude,
                             locationName = locationName
@@ -350,7 +358,7 @@ class HomeViewModel @Inject constructor(
                         transactionRepository.insertTransaction(transaction)
                         
                         // Update account balance
-                        accountRepository.updateBalance(accountId, -due.amount)
+                        accountRepository.updateBalance(finalAccountId, -due.amount)
                         
                         // Calculate and update next due date
                         val calendar = java.util.Calendar.getInstance()
@@ -391,7 +399,7 @@ class HomeViewModel @Inject constructor(
     /**
      * Record debt payment
      */
-    fun payDebt(dueId: String, amount: Double, note: String?) {
+    fun payDebt(dueId: String, amount: Double, note: String?, accountId: String? = null) {
         viewModelScope.launch {
             val debt = debtRepository.getDebtById(dueId)
             if (debt != null) {
@@ -402,8 +410,8 @@ class HomeViewModel @Inject constructor(
                 else 
                     "Received from ${debt.personName}"
                 
-                val defaultAccount = accountRepository.getDefaultAccount()
-                val accountId = defaultAccount?.id ?: "cash"
+                // Use provided accountId or fall back to default account
+                val finalAccountId = accountId ?: accountRepository.getDefaultAccount()?.id ?: "cash"
                 
                 // Try to get location
                 val location = locationHelper.getCurrentLocation()
@@ -412,11 +420,10 @@ class HomeViewModel @Inject constructor(
                 val transaction = Transaction(
                     amount = amount,
                     categoryId = categoryId,
-                    accountId = accountId,
+                    accountId = finalAccountId,
                     type = transactionType,
                     date = System.currentTimeMillis(),
                     note = transactionNote,
-                    // Location metadata
                     latitude = location?.latitude,
                     longitude = location?.longitude,
                     locationName = locationName
@@ -424,7 +431,7 @@ class HomeViewModel @Inject constructor(
                 transactionRepository.insertTransaction(transaction)
                 
                 val balanceChange = if (transactionType == TransactionType.EXPENSE) -amount else amount
-                accountRepository.updateBalance(accountId, balanceChange)
+                accountRepository.updateBalance(finalAccountId, balanceChange)
                 
                 debtRepository.addPayment(debt.id, amount, transaction.id, note)
             }

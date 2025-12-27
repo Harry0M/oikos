@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.ui.components.*
 import com.theblankstate.epmanager.ui.theme.*
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -385,12 +386,13 @@ fun HomeScreen(
     uiState.selectedDue?.let { due ->
         UpcomingDueActionSheet(
             due = due,
+            accounts = uiState.accounts,
             currencySymbol = currencySymbol,
             onDismiss = { viewModel.dismissDueSheet() },
-            onPayNow = { amount, note ->
+            onPayNow = { amount, accountId, note ->
                 when (due) {
-                    is UpcomingDue.DebtDue -> viewModel.payDebt(due.id, amount, note)
-                    is UpcomingDue.SubscriptionDue, is UpcomingDue.ExpenseDue -> viewModel.paySubscriptionEarly(due)
+                    is UpcomingDue.DebtDue -> viewModel.payDebt(due.id, amount, note, accountId)
+                    is UpcomingDue.SubscriptionDue, is UpcomingDue.ExpenseDue -> viewModel.paySubscriptionEarly(due, accountId)
                     else -> { }
                 }
             },
@@ -691,13 +693,15 @@ private fun UpcomingDueItem(
 @Composable
 private fun UpcomingDueActionSheet(
     due: UpcomingDue,
+    accounts: List<Account>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onPayNow: (Double, String?) -> Unit,
+    onPayNow: (Double, String?, String?) -> Unit,
     onViewHistory: () -> Unit
 ) {
     var paymentAmount by remember { mutableStateOf(due.amount.toString()) }
     var note by remember { mutableStateOf("") }
+    var selectedAccount by remember { mutableStateOf<Account?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
     val isDebtOrCredit = due.type == UpcomingDueType.DEBT || due.type == UpcomingDueType.CREDIT
@@ -777,6 +781,29 @@ private fun UpcomingDueActionSheet(
                 )
             }
             
+            // Account selection for debt/credit and subscription/expense
+            if ((isDebtOrCredit || isSubscriptionOrExpense) && accounts.isNotEmpty()) {
+                AccountSelector(
+                    accounts = accounts,
+                    selectedAccount = selectedAccount,
+                    onAccountSelected = { selectedAccount = it },
+                    label = when (due.type) {
+                        UpcomingDueType.CREDIT -> "Receive to"
+                        else -> "Pay from"
+                    },
+                    isOptional = false
+                )
+                
+                Text(
+                    text = when (due.type) {
+                        UpcomingDueType.CREDIT -> "Money will be added to selected account"
+                        else -> "Money will be deducted from selected account"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
             // For subscription/expense: show info
             if (isSubscriptionOrExpense) {
                 Text(
@@ -814,7 +841,7 @@ private fun UpcomingDueActionSheet(
                     Button(
                         onClick = {
                             val amount = paymentAmount.toDoubleOrNull() ?: due.amount
-                            onPayNow(amount, note.ifEmpty { null })
+                            onPayNow(amount, selectedAccount?.id, note.ifEmpty { null })
                         },
                         modifier = Modifier.weight(1f),
                         shape = ButtonShapePill
