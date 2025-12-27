@@ -207,18 +207,6 @@ fun NotificationSettingsScreen(
             )
             
             Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            // Test Notifications
-            if (uiState.hasPermission) {
-                OutlinedButton(
-                    onClick = { viewModel.sendTestNotification() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.NotificationsActive, contentDescription = null)
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Text("Send Test Notification")
-                }
-            }
         }
     }
 }

@@ -29,7 +29,6 @@ fun SettingsScreen(
     onNavigateToExport: () -> Unit = {},
     onNavigateToGoals: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
-    onNavigateToAIInsights: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToCategories: () -> Unit = {},
     onNavigateToAccounts: () -> Unit = {},
@@ -262,25 +261,6 @@ fun SettingsScreen(
         
         Spacer(modifier = Modifier.height(Spacing.lg))
         
-        // AI Features Section
-        SettingsSectionHeader("AI Features")
-        
-        SettingsItem(
-            icon = Icons.Filled.AutoAwesome,
-            title = "AI Insights ✨",
-            subtitle = "Smart spending analysis & predictions",
-            onClick = onNavigateToAIInsights
-        )
-        
-        SettingsItem(
-            icon = Icons.Filled.Sms,
-            title = "SMS Auto-Detection ✨",
-            subtitle = "AI-powered bank SMS parsing",
-            onClick = onNavigateToSmsSettings
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        
         // Preferences Section
         // Appearance Section
         SettingsSectionHeader("Appearance")
@@ -462,19 +442,13 @@ fun SettingsScreen(
         
         Spacer(modifier = Modifier.height(Spacing.lg))
         
-        // About Section
-        SettingsSectionHeader("About")
+        // Help Section
+        SettingsSectionHeader("Help")
         
         SettingsItem(
             icon = Icons.AutoMirrored.Filled.Help,
             title = "Help & Support",
-            subtitle = "Get help with the app"
-        )
-        
-        SettingsItem(
-            icon = Icons.Filled.Info,
-            title = "About",
-            subtitle = "EP Manager v1.0.0"
+            subtitle = "Contact: theblankstateteam@gmail.com"
         )
         
         Spacer(modifier = Modifier.height(Spacing.huge))

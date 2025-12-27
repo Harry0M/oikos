@@ -8,7 +8,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.theblankstate.epmanager.ui.add.AddTransactionScreen
-import com.theblankstate.epmanager.ui.ai.AIInsightsScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsDetailScreen
 import com.theblankstate.epmanager.ui.analytics.AnalyticsDetailType
@@ -248,14 +247,6 @@ fun AppNavHost(
             )
         }
         
-        composable(Screen.AIInsights.route) {
-            AIInsightsScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onNavigateToBudget = {
@@ -272,9 +263,6 @@ fun AppNavHost(
                 },
                 onNavigateToNotifications = {
                     navController.navigate(Screen.NotificationSettings.route)
-                },
-                onNavigateToAIInsights = {
-                    navController.navigate(Screen.AIInsights.route)
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)

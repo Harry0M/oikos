@@ -19,7 +19,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.theblankstate.epmanager.HiltTestRunner"
     }
 
     buildTypes {
@@ -107,6 +107,13 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    
+    // Hilt Testing
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.51.1")
+    kspAndroidTest("com.google.dagger:hilt-compiler:2.51.1")
+    
+    // Room Testing
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
 
     // Security - Encrypted SharedPreferences
     implementation(libs.androidx.security.crypto)
