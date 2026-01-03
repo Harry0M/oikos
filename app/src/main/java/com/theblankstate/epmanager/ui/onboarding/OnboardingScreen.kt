@@ -581,7 +581,7 @@ private fun TermsBottomSheetContent(
         ) {
             // App Header
             Text(
-                text = "Okios v1.0",
+                text = "Okios v2.1",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
