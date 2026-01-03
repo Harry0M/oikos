@@ -110,23 +110,72 @@ object BankRegistry {
     )
     
     val banks = listOf(
-        BankInfo("HDFC Bank", "HDFC", listOf("HDFCBK", "HDFC"), 0xFF004B8D),
-        BankInfo("State Bank of India", "SBI", listOf("SBIINB", "SBIPSG", "SBI"), 0xFF22409A),
-        BankInfo("ICICI Bank", "ICICI", listOf("ICICIB", "ICICI"), 0xFFF58220),
-        BankInfo("Axis Bank", "AXIS", listOf("AXISBK", "AXIS"), 0xFF97144D),
-        BankInfo("Kotak Mahindra Bank", "KOTAK", listOf("KOTAKB", "KOTAK"), 0xFFED1C24),
-        BankInfo("Punjab National Bank", "PNB", listOf("PNBSMS", "PNB"), 0xFFE42529),
-        BankInfo("Yes Bank", "YES", listOf("YESBNK", "YES"), 0xFF0066B3),
-        BankInfo("IndusInd Bank", "INDUSIND", listOf("INDUSB", "INDUS"), 0xFF98272A),
-        BankInfo("Bank of Baroda", "BOB", listOf("BOBSMS", "BOB"), 0xFFE34424),
-        BankInfo("Union Bank of India", "UNION", listOf("UNIONB", "UNION"), 0xFFF26522),
-        BankInfo("Canara Bank", "CANARA", listOf("CANBNK", "CANARA"), 0xFFFFCC00),
-        BankInfo("Bank of India", "BOI", listOf("BOIIND", "BOI"), 0xFF0072BC),
-        BankInfo("IDBI Bank", "IDBI", listOf("IDBIBK", "IDBI"), 0xFF007749),
-        BankInfo("Federal Bank", "FEDERAL", listOf("FEDERL", "FEDERA"), 0xFF00529B),
-        BankInfo("Standard Chartered", "SCB", listOf("SCBANK", "SCB"), 0xFF0072AA),
-        BankInfo("RBL Bank", "RBL", listOf("RBLBNK", "RBL"), 0xFFDA251D),
-        BankInfo("IDFC First Bank", "IDFC", listOf("IDFCFB", "IDFC"), 0xFF9C1D26)
+        // Major Private Banks
+        BankInfo("HDFC Bank", "HDFC", listOf("HDFCBK", "HDFC", "HDFCBN"), 0xFF004B8D),
+        BankInfo("ICICI Bank", "ICICI", listOf("ICICIB", "ICICI", "ICICIP"), 0xFFF58220),
+        BankInfo("Axis Bank", "AXIS", listOf("AXISBK", "AXIS", "UTIB"), 0xFF97144D),
+        BankInfo("Kotak Mahindra Bank", "KOTAK", listOf("KOTAKB", "KOTAK", "KKBK"), 0xFFED1C24),
+        BankInfo("Yes Bank", "YES", listOf("YESBNK", "YES", "YESBK"), 0xFF0066B3),
+        BankInfo("IndusInd Bank", "INDUSIND", listOf("INDUSB", "INDUS", "INDB"), 0xFF98272A),
+        BankInfo("IDFC First Bank", "IDFC", listOf("IDFCFB", "IDFC", "IDFCBK"), 0xFF9C1D26),
+        BankInfo("Federal Bank", "FEDERAL", listOf("FEDERL", "FEDERA", "FDRL"), 0xFF00529B),
+        BankInfo("RBL Bank", "RBL", listOf("RBLBNK", "RBL", "RATNAKAR"), 0xFFDA251D),
+        BankInfo("South Indian Bank", "SIB", listOf("SIBANK", "SIB", "SOUTHIN"), 0xFF0066B3),
+        BankInfo("Karnataka Bank", "KARNATAKA", listOf("KRNTKB", "KARNBK", "KB"), 0xFF00529B),
+        BankInfo("City Union Bank", "CUB", listOf("CITYUB", "CUB", "CIUB"), 0xFF0072BC),
+        BankInfo("Karur Vysya Bank", "KVB", listOf("KVBANK", "KVB", "KARURV"), 0xFFF26522),
+        BankInfo("Bandhan Bank", "BANDHAN", listOf("BANDHN", "BANDHAN", "BDBL"), 0xFFE34424),
+        BankInfo("DCB Bank", "DCB", listOf("DCBBK", "DCB", "DCBL"), 0xFF0072AA),
+        BankInfo("Dhanlaxmi Bank", "DHANLAXMI", listOf("DHANLA", "DLB", "DLXMI"), 0xFF97144D),
+        BankInfo("Jammu & Kashmir Bank", "JK", listOf("JKBANK", "JKB", "JKBNK"), 0xFF004B8D),
+        BankInfo("Tamilnad Mercantile Bank", "TMB", listOf("TMBANK", "TMB", "TNMB"), 0xFFE42529),
+        BankInfo("CSB Bank", "CSB", listOf("CSBBNK", "CSB", "CATHOL"), 0xFF22409A),
+        BankInfo("Nainital Bank", "NAINITAL", listOf("NNITAL", "NAINIT", "NBNK"), 0xFF0072BC),
+        
+        // Public Sector Banks
+        BankInfo("State Bank of India", "SBI", listOf("SBIINB", "SBIPSG", "SBI", "SBISMS"), 0xFF22409A),
+        BankInfo("Punjab National Bank", "PNB", listOf("PNBSMS", "PNB", "PUNBNK"), 0xFFE42529),
+        BankInfo("Bank of Baroda", "BOB", listOf("BOBSMS", "BOB", "BARODAB"), 0xFFE34424),
+        BankInfo("Canara Bank", "CANARA", listOf("CANBNK", "CANARA", "CNRBK"), 0xFFFFCC00),
+        BankInfo("Union Bank of India", "UNION", listOf("UNIONB", "UNION", "UBOI"), 0xFFF26522),
+        BankInfo("Bank of India", "BOI", listOf("BOIIND", "BOI", "BKID"), 0xFF0072BC),
+        BankInfo("Indian Bank", "INDIAN", listOf("INDBK", "INDIAN", "IDIB"), 0xFF004B8D),
+        BankInfo("Central Bank of India", "CENTRAL", listOf("CBIBNK", "CENBNK", "CBI"), 0xFFE42529),
+        BankInfo("Bank of Maharashtra", "BOM", listOf("BOMBNK", "BOM", "MAHB"), 0xFFF26522),
+        BankInfo("Punjab & Sind Bank", "PSB", listOf("PSBBNK", "PSB", "PSIB"), 0xFF22409A),
+        BankInfo("Indian Overseas Bank", "IOB", listOf("IOBBNK", "IOB", "IOBA"), 0xFF0072BC),
+        BankInfo("UCO Bank", "UCO", listOf("UCOBK", "UCO", "UCOBNK"), 0xFF007749),
+        BankInfo("IDBI Bank", "IDBI", listOf("IDBIBK", "IDBI", "IDBLIK"), 0xFF007749),
+        
+        // Small Finance Banks
+        BankInfo("AU Small Finance Bank", "AU", listOf("AUBANK", "AUSFB", "AUSF"), 0xFF5F259F),
+        BankInfo("Equitas Small Finance Bank", "EQUITAS", listOf("EQITAS", "EQUITA", "ESFB"), 0xFFDA251D),
+        BankInfo("Ujjivan Small Finance Bank", "UJJIVAN", listOf("UJJIVA", "UJJIV", "USFB"), 0xFF0066B3),
+        BankInfo("ESAF Small Finance Bank", "ESAF", listOf("ESAFBK", "ESAF", "ESAFB"), 0xFF007749),
+        BankInfo("Suryoday Small Finance Bank", "SURYODAY", listOf("SURYOD", "SURYO", "SSFB"), 0xFFF58220),
+        BankInfo("Jana Small Finance Bank", "JANA", listOf("JANABK", "JANA", "JSFB"), 0xFF22409A),
+        BankInfo("Fincare Small Finance Bank", "FINCARE", listOf("FNCBK", "FINCAR", "FSFB"), 0xFF5F259F),
+        BankInfo("Shivalik Small Finance Bank", "SHIVALIK", listOf("SHVLK", "SHIVAL", "SHSFB"), 0xFF0072BC),
+        
+        // Payment Banks
+        BankInfo("Airtel Payments Bank", "AIRTEL", listOf("AIRTEL", "APTB", "AIRPB"), 0xFFED1C24),
+        BankInfo("India Post Payments Bank", "IPPB", listOf("IPPBNK", "IPPB", "INDPOST"), 0xFFE42529),
+        BankInfo("Jio Payments Bank", "JIO", listOf("JIOPAY", "JIOBNK", "JPB"), 0xFF0066B3),
+        BankInfo("NSDL Payments Bank", "NSDL", listOf("NSDLPB", "NSDL", "NPB"), 0xFF004B8D),
+        BankInfo("Fino Payments Bank", "FINO", listOf("FINOPB", "FINO", "FPB"), 0xFF0072AA),
+        
+        // Foreign Banks
+        BankInfo("Standard Chartered", "SCB", listOf("SCBANK", "SCB", "STCHART"), 0xFF0072AA),
+        BankInfo("HSBC", "HSBC", listOf("HSBCIN", "HSBC", "HSBCBK"), 0xFFDB0011),
+        BankInfo("Citibank", "CITI", listOf("CITIBK", "CITI", "CITBNK"), 0xFF0066B3),
+        BankInfo("Deutsche Bank", "DB", listOf("DEUTBK", "DB", "DEUTSC"), 0xFF0018A8),
+        BankInfo("DBS Bank", "DBS", listOf("DBSBNK", "DBS", "DBSS"), 0xFFED1C24),
+        BankInfo("American Express", "AMEX", listOf("AMEXIN", "AMEX", "AMXIN"), 0xFF006FCF),
+        
+        // Cooperative Banks
+        BankInfo("Saraswat Bank", "SARASWAT", listOf("SARBNK", "SARASW", "SBL"), 0xFF97144D),
+        BankInfo("Cosmos Bank", "COSMOS", listOf("COSMOS", "COSMOB", "CBL"), 0xFF0072BC),
+        BankInfo("TJSB Bank", "TJSB", listOf("TJSBNK", "TJSB", "TJSBK"), 0xFF22409A)
     )
     
     // UPI/Wallet providers

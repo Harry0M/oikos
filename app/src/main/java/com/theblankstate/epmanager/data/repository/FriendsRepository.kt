@@ -143,17 +143,17 @@ class FriendsRepository @Inject constructor(
                 return Result.failure(Exception("Already friends"))
             }
             
-            // Check for existing pending request (simplified - no index needed)
-            val myRequestsSnapshot = requestsRef.child(fromUserId + "_" + toUser.odiserId).get().await()
-            if (myRequestsSnapshot.exists()) {
-                val status = myRequestsSnapshot.child("status").getValue(String::class.java)
+            // Check for existing pending request under SENDER's path (we can read our own path)
+            val requestId = "${fromUserId}_${toUser.odiserId}"
+            val existingRequest = requestsRef.child(fromUserId).child(requestId).get().await()
+            if (existingRequest.exists()) {
+                val status = existingRequest.child("status").getValue(String::class.java)
                 if (status == "PENDING") {
                     return Result.failure(Exception("Request already sent"))
                 }
             }
             
-            // Create friend request with composite key
-            val requestId = "${fromUserId}_${toUser.odiserId}"
+            // Create friend request
             val request = FriendRequest(
                 id = requestId,
                 fromUserId = fromUserId,
@@ -164,8 +164,11 @@ class FriendsRepository @Inject constructor(
                 status = RequestStatus.PENDING
             )
             
-            // Save to Firebase
-            requestsRef.child(requestId).setValue(requestToMap(request)).await()
+            // Save to Firebase under RECIPIENT's path (so they can read it)
+            requestsRef.child(toUser.odiserId).child(requestId).setValue(requestToMap(request)).await()
+            
+            // Also save under sender's path for tracking sent requests
+            requestsRef.child(fromUserId).child(requestId).setValue(requestToMap(request)).await()
             
             // Save locally as sent
             friendDao.insertRequest(request)
@@ -183,8 +186,8 @@ class FriendsRepository @Inject constructor(
     suspend fun acceptFriendRequest(requestId: String): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("Not logged in"))
         
-        // Get request from Firebase
-        val snapshot = requestsRef.child(requestId).get().await()
+        // Get request from Firebase (under current user's path)
+        val snapshot = requestsRef.child(userId).child(requestId).get().await()
         if (!snapshot.exists()) {
             return Result.failure(Exception("Request not found"))
         }
@@ -193,8 +196,9 @@ class FriendsRepository @Inject constructor(
         val fromEmail = snapshot.child("fromEmail").getValue(String::class.java) ?: ""
         val fromDisplayName = snapshot.child("fromDisplayName").getValue(String::class.java)
         
-        // Update request status
-        requestsRef.child(requestId).child("status").setValue("ACCEPTED").await()
+        // Update request status in both paths
+        requestsRef.child(userId).child(requestId).child("status").setValue("ACCEPTED").await()
+        requestsRef.child(fromUserId).child(requestId).child("status").setValue("ACCEPTED").await()
         
         // Add to friends list (both users)
         val timestamp = System.currentTimeMillis()
@@ -230,8 +234,17 @@ class FriendsRepository @Inject constructor(
      * Reject a friend request
      */
     suspend fun rejectFriendRequest(requestId: String): Result<Unit> {
-        // Update request status
-        requestsRef.child(requestId).child("status").setValue("REJECTED").await()
+        val userId = currentUserId ?: return Result.failure(Exception("Not logged in"))
+        
+        // Get request to find fromUserId
+        val snapshot = requestsRef.child(userId).child(requestId).get().await()
+        val fromUserId = snapshot.child("fromUserId").getValue(String::class.java)
+        
+        // Update request status in both paths
+        requestsRef.child(userId).child(requestId).child("status").setValue("REJECTED").await()
+        if (fromUserId != null) {
+            requestsRef.child(fromUserId).child(requestId).child("status").setValue("REJECTED").await()
+        }
         
         // Remove local request
         friendDao.deleteRequestById(requestId)
@@ -240,7 +253,7 @@ class FriendsRepository @Inject constructor(
     }
     
     /**
-     * Get incoming friend requests (real-time)
+     * Get incoming friend requests (real-time) - now listens to current user's path
      */
     fun getIncomingRequests(): Flow<List<FriendRequest>> = callbackFlow {
         val userId = currentUserId ?: run {
@@ -256,6 +269,7 @@ class FriendsRepository @Inject constructor(
                     val toUserId = child.child("toUserId").getValue(String::class.java)
                     val status = child.child("status").getValue(String::class.java)
                     
+                    // Only show pending requests where I am the recipient
                     if (toUserId == userId && status == "PENDING") {
                         requests.add(mapToRequest(child))
                     }
@@ -269,8 +283,9 @@ class FriendsRepository @Inject constructor(
             }
         }
         
-        requestsRef.addValueEventListener(listener)
-        awaitClose { requestsRef.removeEventListener(listener) }
+        // Listen to current user's requests path
+        requestsRef.child(userId).addValueEventListener(listener)
+        awaitClose { requestsRef.child(userId).removeEventListener(listener) }
     }
     
     // ==================== FRIENDS ====================

@@ -6,6 +6,8 @@ import com.theblankstate.epmanager.data.repository.AppTheme
 import com.theblankstate.epmanager.data.repository.TermsRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import com.theblankstate.epmanager.data.repository.UserPreferencesRepository
+import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
+import com.theblankstate.epmanager.data.model.SmsTemplate
 import com.theblankstate.epmanager.data.sync.FirebaseSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +29,8 @@ class OnboardingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val transactionRepository: TransactionRepository,
     private val firebaseSyncManager: FirebaseSyncManager,
-    private val termsRepository: TermsRepository
+    private val termsRepository: TermsRepository,
+    private val smsTemplateDao: SmsTemplateDao
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(OnboardingUiState())
@@ -145,6 +148,28 @@ class OnboardingViewModel @Inject constructor(
      */
     suspend fun hasAcceptedTerms(): Boolean {
         return termsRepository.hasAcceptedCurrentTerms()
+    }
+    
+    /**
+     * Add a custom bank template for SMS parsing during onboarding
+     */
+    fun addCustomBank(bankName: String, senderIds: String) {
+        viewModelScope.launch {
+            try {
+                val template = SmsTemplate(
+                    bankName = bankName.trim(),
+                    senderIds = senderIds.split(",")
+                        .map { it.trim().uppercase() }
+                        .filter { it.isNotEmpty() }
+                        .joinToString(","),
+                    isCustom = true,
+                    isActive = true
+                )
+                smsTemplateDao.insertTemplate(template)
+            } catch (e: Exception) {
+                // Handle silently - this is a convenience feature
+            }
+        }
     }
 }
 

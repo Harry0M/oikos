@@ -28,6 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.ui.components.formatAmount
+import com.theblankstate.epmanager.ui.sms.AddCustomBankSheet
 import com.theblankstate.epmanager.ui.theme.*
 
 // Available icons for account selection
@@ -236,6 +237,9 @@ fun AccountsScreen(
             },
             onConfirmLinked = { name, bankSuggestion, accountNumber, type, balance ->
                 viewModel.createLinkedAccount(name, bankSuggestion, accountNumber, type, balance)
+            },
+            onAddCustomBank = { bankName, senderIds, onSuccess ->
+                viewModel.addCustomBank(bankName, senderIds, onSuccess)
             }
         )
     }
@@ -253,6 +257,9 @@ fun AccountsScreen(
                     accountNumber,
                     senderIds
                 )
+            },
+            onAddCustomBank = { bankName, senderIds, onSuccess ->
+                viewModel.addCustomBank(bankName, senderIds, onSuccess)
             }
         )
     }
@@ -328,6 +335,26 @@ private fun HelpCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // Sender ID notice
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Lightbulb,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Text(
+                    text = "Tip: Banks may change their SMS sender IDs. If your bank SMS isn't detected, create a custom bank template with the new sender ID from your SMS.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
@@ -724,7 +751,8 @@ fun AddEditAccountSheet(
     bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double) -> Unit,
-    onConfirmLinked: (name: String, bankSuggestion: BankSuggestion, accountNumber: String?, type: AccountType, balance: Double) -> Unit
+    onConfirmLinked: (name: String, bankSuggestion: BankSuggestion, accountNumber: String?, type: AccountType, balance: Double) -> Unit,
+    onAddCustomBank: ((bankName: String, senderIds: String, onSuccess: (BankSuggestion) -> Unit) -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(existingAccount?.name ?: "") }
     var selectedType by remember { mutableStateOf(existingAccount?.type ?: AccountType.BANK) }
@@ -739,6 +767,7 @@ fun AddEditAccountSheet(
     var accountNumber by remember { mutableStateOf("") }
     var expandedBank by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showAddCustomBankSheet by remember { mutableStateOf(false) }
     
     // Filter and group banks
     val registryBanks = bankSuggestions.filter { !it.isCustom }
@@ -1178,9 +1207,102 @@ fun AddEditAccountSheet(
                             }
                         )
                     }
+                    
+                    // Add Custom Bank option at the bottom
+                    if (onAddCustomBank != null) {
+                        item {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showAddCustomBankSheet = true },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Spacing.md),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Add,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Add Custom Bank",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = "Bank not listed? Add it manually",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Filled.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        // Notice about sender ID changes
+                        item {
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(Spacing.sm),
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Lightbulb,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Banks may update their SMS sender IDs. If your bank's SMS isn't being detected, create a custom bank with the new sender ID found in your SMS.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            Spacer(modifier = Modifier.height(Spacing.lg))
+                        }
+                    }
                 }
             }
         }
+    }
+    
+    // Add Custom Bank Sheet
+    if (showAddCustomBankSheet && onAddCustomBank != null) {
+        AddCustomBankSheet(
+            onDismiss = { showAddCustomBankSheet = false },
+            onConfirm = { bankName, senderIds ->
+                onAddCustomBank(bankName, senderIds) { newBank ->
+                    selectedBank = newBank
+                    selectedColor = newBank.color
+                    if (name.isBlank()) name = newBank.name
+                    showAddCustomBankSheet = false
+                    expandedBank = false
+                }
+            }
+        )
     }
 }
 
@@ -1313,12 +1435,14 @@ private fun LinkAccountDialog(
     account: Account,
     bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
-    onConfirm: (bankCode: String, accountNumber: String?, senderIds: List<String>) -> Unit
+    onConfirm: (bankCode: String, accountNumber: String?, senderIds: List<String>) -> Unit,
+    onAddCustomBank: ((bankName: String, senderIds: String, onSuccess: (BankSuggestion) -> Unit) -> Unit)? = null
 ) {
     var selectedBank by remember { mutableStateOf<BankSuggestion?>(null) }
     var accountNumber by remember { mutableStateOf(account.accountNumber ?: "") }
     var expandedBank by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showAddCustomBankSheet by remember { mutableStateOf(false) }
     
     val customBanks = bankSuggestions.filter { it.isCustom }
     
@@ -1330,132 +1454,245 @@ private fun LinkAccountDialog(
         }
     }
     
-    AlertDialog(
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(
-                    text = "Link Bank for SMS Auto-Detection",
-                    fontWeight = FontWeight.Bold
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.lg)
+                .padding(bottom = Spacing.xl)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Header
+            Text(
+                text = "Link Bank for SMS Auto-Detection",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = account.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Info card
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                 )
-                Text(
-                    text = account.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                // Info card
+                Row(
+                    modifier = Modifier.padding(Spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "After linking, SMS from this bank will automatically create transactions in this account.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Search field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { 
+                    searchQuery = it
+                    selectedBank = null
+                    expandedBank = true
+                },
+                label = { Text("Search Banks *") },
+                placeholder = { Text("Type to search...") },
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null)
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Selected bank display
+            if (selectedBank != null) {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(Spacing.md),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "After linking, SMS from this bank will automatically create transactions in this account.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-                
-                // Bank Selector
-                ExposedDropdownMenuBox(
-                    expanded = expandedBank,
-                    onExpandedChange = { expandedBank = it }
-                ) {
-                    OutlinedTextField(
-                        value = selectedBank?.name ?: searchQuery,
-                        onValueChange = { 
-                            searchQuery = it
-                            selectedBank = null
-                        },
-                        label = { Text("Select Bank *") },
-                        placeholder = { Text("Search banks...") },
-                        trailingIcon = { 
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedBank) 
-                        },
-                        leadingIcon = {
-                            if (selectedBank != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(selectedBank!!.color))
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Filled.AccountBalance,
-                                    contentDescription = null
-                                )
-                            }
-                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
-                    )
-                    
-                    ExposedDropdownMenu(
-                        expanded = expandedBank,
-                        onDismissRequest = { expandedBank = false }
+                            .padding(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
                     ) {
-                        // Custom templates first
-                        if (customBanks.isNotEmpty()) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        "Your Custom Templates",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                },
-                                onClick = {},
-                                enabled = false
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(selectedBank!!.color)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = selectedBank!!.name.take(2).uppercase(),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Color.White
                             )
-                            customBanks.forEach { bank ->
-                                BankDropdownItem(
-                                    bank = bank,
-                                    isCustom = true,
-                                    onClick = {
-                                        selectedBank = bank
-                                        expandedBank = false
-                                        searchQuery = ""
-                                    }
-                                )
-                            }
-                            HorizontalDivider()
                         }
-                        
-                        filteredBanks.filter { !it.isCustom }.take(10).forEach { bank ->
-                            BankDropdownItem(
-                                bank = bank,
-                                isCustom = false,
-                                onClick = {
-                                    selectedBank = bank
-                                    expandedBank = false
-                                    searchQuery = ""
-                                }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = selectedBank!!.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
+                            Text(
+                                text = "SMS Senders: ${selectedBank!!.senderPatterns.joinToString(", ")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        IconButton(onClick = { selectedBank = null }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Remove")
                         }
                     }
                 }
                 
-                // Account Number
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+            
+            // Bank list
+            if (selectedBank == null) {
+                // Custom banks first
+                if (customBanks.isNotEmpty()) {
+                    Text(
+                        text = "Your Custom Templates",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = Spacing.sm)
+                    )
+                    customBanks.forEach { bank ->
+                        BankListItem(
+                            bank = bank,
+                            isCustom = true,
+                            isSelected = false,
+                            onClick = { selectedBank = bank }
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+                }
+                
+                // Filtered banks
+                Text(
+                    text = if (searchQuery.isNotBlank()) "Search Results" else "Popular Banks",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = Spacing.sm)
+                )
+                
+                filteredBanks.filter { !it.isCustom }.forEach { bank ->
+                    BankListItem(
+                        bank = bank,
+                        isCustom = false,
+                        isSelected = false,
+                        onClick = { selectedBank = bank }
+                    )
+                }
+                
+                // Add Custom Bank option
+                if (onAddCustomBank != null) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAddCustomBankSheet = true },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Add Custom Bank",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Bank not listed? Add it manually",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Notice about sender ID changes
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Lightbulb,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Banks may update their SMS sender IDs. If your bank's SMS isn't being detected, create a custom bank with the new sender ID found in your SMS.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Account Number (only when bank selected)
+            if (selectedBank != null) {
                 OutlinedTextField(
                     value = accountNumber,
                     onValueChange = { 
@@ -1473,54 +1710,53 @@ private fun LinkAccountDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 
-                // Preview
-                if (selectedBank != null) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(Spacing.md)
-                        ) {
-                            Text(
-                                text = "✓ SMS from these senders will be tracked:",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = Success
-                            )
-                            Text(
-                                text = selectedBank!!.senderPatterns.joinToString(", "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            if (selectedBank != null) {
+                                onConfirm(
+                                    selectedBank!!.code,
+                                    accountNumber.takeIf { it.isNotBlank() },
+                                    selectedBank!!.senderPatterns
+                                )
+                            }
+                        },
+                        enabled = selectedBank != null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Link Account")
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (selectedBank != null) {
-                        onConfirm(
-                            selectedBank!!.code,
-                            accountNumber.takeIf { it.isNotBlank() },
-                            selectedBank!!.senderPatterns
-                        )
-                    }
-                },
-                enabled = selectedBank != null
-            ) {
-                Text("Link")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
-    )
+    }
+    
+    // Add Custom Bank Sheet
+    if (showAddCustomBankSheet && onAddCustomBank != null) {
+        AddCustomBankSheet(
+            onDismiss = { showAddCustomBankSheet = false },
+            onConfirm = { bankName, senderIds ->
+                onAddCustomBank(bankName, senderIds) { newBank ->
+                    selectedBank = newBank
+                    showAddCustomBankSheet = false
+                }
+            }
+        )
+    }
 }
 
 // Helper function to get icon from name

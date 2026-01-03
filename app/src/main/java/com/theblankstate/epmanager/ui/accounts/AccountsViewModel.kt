@@ -28,6 +28,7 @@ data class AccountsUiState(
     val isLoading: Boolean = true,
     val showAddDialog: Boolean = false,
     val showLinkDialog: Boolean = false,
+    val showAddCustomBankSheet: Boolean = false,
     val editingAccount: Account? = null,
     val linkingAccount: Account? = null,
     val bankSuggestions: List<BankSuggestion> = emptyList(),
@@ -140,6 +141,52 @@ class AccountsViewModel @Inject constructor(
     
     fun hideLinkDialog() {
         _uiState.update { it.copy(showLinkDialog = false, linkingAccount = null) }
+    }
+    
+    fun showAddCustomBankSheet() {
+        _uiState.update { it.copy(showAddCustomBankSheet = true) }
+    }
+    
+    fun hideAddCustomBankSheet() {
+        _uiState.update { it.copy(showAddCustomBankSheet = false) }
+    }
+    
+    /**
+     * Add a custom bank template for SMS parsing
+     * @param bankName The name of the bank
+     * @param senderIds Comma-separated sender IDs from bank SMS
+     * @param onSuccess Callback when bank is added, with the new BankSuggestion
+     */
+    fun addCustomBank(bankName: String, senderIds: String, onSuccess: (BankSuggestion) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val template = SmsTemplate(
+                    bankName = bankName.trim(),
+                    senderIds = senderIds.split(",")
+                        .map { it.trim().uppercase() }
+                        .filter { it.isNotEmpty() }
+                        .joinToString(","),
+                    isCustom = true,
+                    isActive = true
+                )
+                smsTemplateDao.insertTemplate(template)
+                
+                // Create a BankSuggestion for the new template
+                val newBankSuggestion = BankSuggestion(
+                    name = template.bankName,
+                    code = template.bankName.uppercase().take(6),
+                    senderPatterns = template.senderIds.split(",").map { it.trim() },
+                    color = 0xFF6B7280, // Gray for custom
+                    isCustom = true,
+                    templateId = template.id
+                )
+                
+                hideAddCustomBankSheet()
+                onSuccess(newBankSuggestion)
+            } catch (e: Exception) {
+                // Handle error silently for now
+            }
+        }
     }
     
     fun saveAccount(

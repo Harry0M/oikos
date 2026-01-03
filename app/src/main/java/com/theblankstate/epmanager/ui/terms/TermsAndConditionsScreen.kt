@@ -98,7 +98,7 @@ fun TermsAndConditionsScreen(
         ) {
             // App Header
             Text(
-                text = "Oikos",
+                text = "Okios",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -132,7 +132,7 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.CheckCircle,
                 title = "1. Acceptance of Terms",
                 content = """
-                    By using Oikos ("the App"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the App.
+                    By using Okios ("the App"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the App.
                     
                     Your acceptance of these terms is recorded with a timestamp for legal compliance.
                 """.trimIndent()
@@ -160,7 +160,7 @@ fun TermsAndConditionsScreen(
                 content = """
                     DEVICE SECURITY: The security of your data depends on your device's security. We recommend using device lock (PIN, fingerprint, or face unlock) to protect your data.
                     
-                    ⚠️ THIRD-PARTY APPS WARNING: Malicious applications installed on your device may potentially access data stored by Oikos. We are not responsible for data breaches caused by third-party malware or compromised devices.
+                    ⚠️ THIRD-PARTY APPS WARNING: Malicious applications installed on your device may potentially access data stored by Okios. We are not responsible for data breaches caused by third-party malware or compromised devices.
                     
                     ENCRYPTION: Data stored locally is protected by Android's security measures. Cloud-synced data is encrypted in transit.
                 """.trimIndent()
@@ -171,7 +171,7 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.PhoneAndroid,
                 title = "4. SMS Permissions",
                 content = """
-                    AUTO-TRACKING FEATURE: Oikos can optionally read your SMS messages to automatically detect and record transactions from bank notifications.
+                    AUTO-TRACKING FEATURE: Okios can optionally read your SMS messages to automatically detect and record transactions from bank notifications.
                     
                     LOCAL PROCESSING: SMS messages are processed entirely on your device. Message content is never sent to any server.
                     
@@ -194,7 +194,7 @@ fun TermsAndConditionsScreen(
                     • User error
                     • Any other circumstances beyond our control
                     
-                    FINANCIAL ADVICE: Oikos is a tracking tool only. It does not provide financial, investment, or tax advice.
+                    FINANCIAL ADVICE: Okios is a tracking tool only. It does not provide financial, investment, or tax advice.
                     
                     ACCURACY: While we strive for accuracy, we are not responsible for errors in automatic transaction detection or calculations.
                 """.trimIndent()
@@ -205,7 +205,7 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.Lock,
                 title = "6. Open Source & Attribution",
                 content = """
-                    OPEN SOURCE: Oikos is an open-source project. The source code is available for review and contribution.
+                    OPEN SOURCE: Okios is an open-source project. The source code is available for review and contribution.
                     
                     BUILT WITH AI: This app was developed with the assistance of GitHub Copilot and Anthropic's Antigravity (Claude AI).
                     

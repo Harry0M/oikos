@@ -373,6 +373,13 @@ fun SettingsScreen(
         )
         
         SettingsItem(
+            icon = Icons.Filled.Sms,
+            title = "SMS Auto-Detection",
+            subtitle = "Bank SMS parsing & custom templates",
+            onClick = onNavigateToSmsSettings
+        )
+        
+        SettingsItem(
             icon = Icons.Filled.AttachMoney,
             title = "Currency",
             subtitle = "${CurrencyProvider.getSymbol(currentCurrencyCode)} - ${CurrencyProvider.getCurrency(currentCurrencyCode)?.name ?: currentCurrencyCode}"
