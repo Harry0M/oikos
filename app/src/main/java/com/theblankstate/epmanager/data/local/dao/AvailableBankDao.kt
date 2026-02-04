@@ -47,6 +47,13 @@ interface AvailableBankDao {
     fun getUnknownSenderBanks(): Flow<List<AvailableBank>>
     
     /**
+     * Get linkable banks (SCANNED + CUSTOM only, excluding UNKNOWN_SENDER)
+     * This is used for the account linking dialog
+     */
+    @Query("SELECT * FROM available_banks WHERE (source = 'SCANNED' OR source = 'CUSTOM') AND isActive = 1 ORDER BY transactionCount DESC")
+    fun getLinkableBanks(): Flow<List<AvailableBank>>
+    
+    /**
      * Get bank by ID
      */
     @Query("SELECT * FROM available_banks WHERE id = :id")

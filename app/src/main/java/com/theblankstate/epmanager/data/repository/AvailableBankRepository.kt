@@ -49,6 +49,13 @@ class AvailableBankRepository @Inject constructor(
         availableBankDao.getUnknownSenderBanks()
     
     /**
+     * Get linkable banks for account linking (SCANNED + CUSTOM only)
+     * Excludes UNKNOWN_SENDER entries which are individual sender IDs
+     */
+    fun getLinkableBanks(): Flow<List<AvailableBank>> = 
+        availableBankDao.getLinkableBanks()
+    
+    /**
      * Get bank by ID
      */
     suspend fun getBankById(id: String): AvailableBank? = 

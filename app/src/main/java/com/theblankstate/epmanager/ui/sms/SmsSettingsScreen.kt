@@ -185,7 +185,7 @@ fun SmsSettingsScreen(
                         UnknownSenderMainScreenItem(
                             bank = sender,
                             customTemplates = uiState.customTemplates,
-                            availableBanks = uiState.availableBanks,
+                            detectedBanks = discoveryResult.detectedBanks,
                             onAddAsNew = {
                                 viewModel.addCustomBank(sender.bankName, sender.senderIds.joinToString(","))
                             },
@@ -193,9 +193,20 @@ fun SmsSettingsScreen(
                                 val senderId = sender.senderIds.firstOrNull() ?: return@UnknownSenderMainScreenItem
                                 viewModel.addSenderToExistingBank(senderId, templateId)
                             },
-                            onAddToExistingBank = { bankId ->
-                                val senderId = sender.senderIds.firstOrNull() ?: return@UnknownSenderMainScreenItem
-                                viewModel.addSenderToAvailableBank(senderId, bankId)
+                            onAddToDetectedBank = { detectedBank ->
+                                // Add sender to the detected bank by adding it as a custom bank entry
+                                val senderToAdd = sender.senderIds.firstOrNull() ?: return@UnknownSenderMainScreenItem
+                                // Find if there's already an available bank for this detected bank
+                                val existingAvailableBank = uiState.availableBanks.find {
+                                    it.bankCode.equals(detectedBank.bankInfo?.code ?: detectedBank.bankName.uppercase(), ignoreCase = true)
+                                }
+                                if (existingAvailableBank != null) {
+                                    viewModel.addSenderToAvailableBank(senderToAdd, existingAvailableBank.id)
+                                } else {
+                                    // Add as new entry to the detected bank
+                                    val existingSenderIds = detectedBank.senderIds.joinToString(",")
+                                    viewModel.addCustomBank(detectedBank.bankName, "$existingSenderIds,$senderToAdd")
+                                }
                             }
                         )
                     }
@@ -1379,10 +1390,10 @@ fun DiscoveredBankResultItem(
 fun UnknownSenderMainScreenItem(
     bank: DiscoveredBank,
     customTemplates: List<SmsTemplate>,
-    availableBanks: List<AvailableBank> = emptyList(),
+    detectedBanks: List<DiscoveredBank> = emptyList(),
     onAddAsNew: () -> Unit,
     onAddToExistingTemplate: (templateId: String) -> Unit,
-    onAddToExistingBank: (bankId: String) -> Unit = {}
+    onAddToDetectedBank: (detectedBank: DiscoveredBank) -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     
@@ -1461,8 +1472,8 @@ fun UnknownSenderMainScreenItem(
                         }
                     )
                     
-                    // Add to available banks (scanned banks) if any exist
-                    if (availableBanks.isNotEmpty()) {
+                    // Add to detected banks (from current scan) if any exist
+                    if (detectedBanks.isNotEmpty()) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.xs))
                         
                         Text(
@@ -1472,16 +1483,16 @@ fun UnknownSenderMainScreenItem(
                             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)
                         )
                         
-                        availableBanks.take(10).forEach { availableBank ->
+                        detectedBanks.take(10).forEach { detectedBank ->
                             DropdownMenuItem(
                                 text = { 
                                     Column {
                                         Text(
-                                            availableBank.bankName,
+                                            detectedBank.bankName,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                         Text(
-                                            availableBank.senderIds,
+                                            detectedBank.senderIds.joinToString(", "),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
@@ -1490,7 +1501,7 @@ fun UnknownSenderMainScreenItem(
                                     }
                                 },
                                 onClick = {
-                                    onAddToExistingBank(availableBank.id)
+                                    onAddToDetectedBank(detectedBank)
                                     showMenu = false
                                 },
                                 leadingIcon = {
