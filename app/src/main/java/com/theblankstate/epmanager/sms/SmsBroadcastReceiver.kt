@@ -177,6 +177,10 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     /**
      * Save transaction from regex parsing (fast path)
      * Also updates the linked account balance
+     * 
+     * Smart duplicate detection:
+     * - Checks if SMS matches an existing recurring expense
+     * - If found, updates existing transaction with SMS details instead of creating duplicate
      */
     private suspend fun saveTransactionFromRegex(
         context: Context,
@@ -191,7 +195,90 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         // Find matching account
         val matchedAccountId = findMatchingAccountId(accountRepository, parsed, sender)
         
-        // Determine category based on merchant if possible
+        // ========== SMART DUPLICATE DETECTION ==========
+        // Check if this SMS matches an existing recurring expense
+        if (matchedAccountId != null) {
+            val matchedRecurring = findMatchingRecurringExpense(
+                db = db,
+                accountId = matchedAccountId,
+                amount = parsed.amount,
+                isDebit = parsed.isDebit
+            )
+            
+            if (matchedRecurring != null) {
+                // Found matching recurring expense - check if transaction already exists
+                val twoDaysMs = 2 * 24 * 60 * 60 * 1000L
+                val now = System.currentTimeMillis()
+                
+                val existingTransaction = db.transactionDao().findRecurringTransaction(
+                    recurringId = matchedRecurring.id,
+                    startDate = now - twoDaysMs,
+                    endDate = now + twoDaysMs
+                )
+                
+                if (existingTransaction != null) {
+                    // Transaction already exists from recurring - just add SMS details
+                    db.transactionDao().updateTransactionWithSmsDetails(
+                        transactionId = existingTransaction.id,
+                        smsSender = sender,
+                        originalSms = parsed.originalMessage,
+                        refNumber = parsed.referenceNumber,
+                        upiId = parsed.upiId,
+                        merchantName = parsed.merchantName,
+                        senderName = parsed.senderName,
+                        receiverName = parsed.receiverName
+                    )
+                    Log.d(TAG, "SMS matched recurring expense '${matchedRecurring.name}' - updated existing transaction with SMS details")
+                    return
+                } else {
+                    // No existing transaction - create new one linked to recurring
+                    val categoryId = tryDetectCategory(db, parsed.merchantName) ?: matchedRecurring.categoryId
+                    
+                    val transaction = Transaction(
+                        amount = parsed.amount,
+                        type = if (parsed.isDebit) TransactionType.EXPENSE else TransactionType.INCOME,
+                        categoryId = categoryId,
+                        accountId = matchedAccountId,
+                        date = System.currentTimeMillis(),
+                        note = buildNote(parsed, sender, true),
+                        isRecurring = true,
+                        recurringId = matchedRecurring.id,
+                        isSynced = false,
+                        smsSender = sender,
+                        merchantName = parsed.merchantName,
+                        refNumber = parsed.referenceNumber,
+                        upiId = parsed.upiId,
+                        senderName = parsed.senderName,
+                        receiverName = parsed.receiverName,
+                        originalSms = parsed.originalMessage,
+                        latitude = location?.latitude,
+                        longitude = location?.longitude,
+                        locationName = locationName
+                    )
+                    
+                    db.transactionDao().insertTransaction(transaction)
+                    
+                    // Update recurring expense due date
+                    val nextDue = calculateNextDueDate(matchedRecurring)
+                    db.recurringExpenseDao().updateDueDate(
+                        id = matchedRecurring.id,
+                        nextDueDate = nextDue,
+                        processedDate = System.currentTimeMillis()
+                    )
+                    
+                    Log.d(TAG, "SMS matched recurring expense '${matchedRecurring.name}' - created linked transaction")
+                    
+                    // Update account balance
+                    val balanceChange = if (parsed.isDebit) -parsed.amount else parsed.amount
+                    accountRepository.updateBalance(matchedAccountId, balanceChange)
+                    
+                    return
+                }
+            }
+        }
+        // ========== END SMART DUPLICATE DETECTION ==========
+        
+        // No recurring match found - create normal transaction
         val categoryId = tryDetectCategory(db, parsed.merchantName)
         
         val transaction = Transaction(
@@ -209,6 +296,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
             upiId = parsed.upiId,
             senderName = parsed.senderName,
             receiverName = parsed.receiverName,
+            originalSms = parsed.originalMessage,
             // Location metadata
             latitude = location?.latitude,
             longitude = location?.longitude,
@@ -229,6 +317,56 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         if (matchedAccountId == null && parsed.accountHint != null) {
             savePendingAccountInfo(context, parsed, sender)
         }
+    }
+    
+    /**
+     * Find a recurring expense that matches the SMS transaction
+     * Criteria: same account, amount within ±5, due date within ±2 days
+     */
+    private suspend fun findMatchingRecurringExpense(
+        db: ExpenseDatabase,
+        accountId: String,
+        amount: Double,
+        isDebit: Boolean
+    ): com.theblankstate.epmanager.data.model.RecurringExpense? {
+        val amountTolerance = 5.0
+        val dayTolerance = 2 * 24 * 60 * 60 * 1000L // 2 days in ms
+        val now = System.currentTimeMillis()
+        
+        val matches = db.recurringExpenseDao().findMatchingRecurringExpense(
+            accountId = accountId,
+            minAmount = amount - amountTolerance,
+            maxAmount = amount + amountTolerance,
+            startDate = now - dayTolerance,
+            endDate = now + dayTolerance
+        )
+        
+        // Filter by transaction type (expense/income should match)
+        val expectedType = if (isDebit) 
+            com.theblankstate.epmanager.data.model.TransactionType.EXPENSE 
+        else 
+            com.theblankstate.epmanager.data.model.TransactionType.INCOME
+            
+        return matches.firstOrNull { it.type == expectedType }
+    }
+    
+    /**
+     * Calculate next due date based on recurring frequency
+     */
+    private fun calculateNextDueDate(recurring: com.theblankstate.epmanager.data.model.RecurringExpense): Long {
+        val calendar = java.util.Calendar.getInstance()
+        calendar.timeInMillis = recurring.nextDueDate
+        
+        when (recurring.frequency) {
+            com.theblankstate.epmanager.data.model.RecurringFrequency.DAILY -> calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            com.theblankstate.epmanager.data.model.RecurringFrequency.WEEKLY -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, 1)
+            com.theblankstate.epmanager.data.model.RecurringFrequency.BIWEEKLY -> calendar.add(java.util.Calendar.WEEK_OF_YEAR, 2)
+            com.theblankstate.epmanager.data.model.RecurringFrequency.MONTHLY -> calendar.add(java.util.Calendar.MONTH, 1)
+            com.theblankstate.epmanager.data.model.RecurringFrequency.QUARTERLY -> calendar.add(java.util.Calendar.MONTH, 3)
+            com.theblankstate.epmanager.data.model.RecurringFrequency.YEARLY -> calendar.add(java.util.Calendar.YEAR, 1)
+        }
+        
+        return calendar.timeInMillis
     }
     
     /**

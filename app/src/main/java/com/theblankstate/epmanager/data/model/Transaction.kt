@@ -60,7 +60,8 @@ data class Transaction(
     val receiverName: String? = null, // Who received money (for debits)
     val refNumber: String? = null, // Transaction reference number
     val merchantName: String? = null, // Merchant or payee name
-    val upiId: String? = null // UPI ID if available
+    val upiId: String? = null, // UPI ID if available
+    val originalSms: String? = null // Complete original SMS message
 )
 
 enum class TransactionType {

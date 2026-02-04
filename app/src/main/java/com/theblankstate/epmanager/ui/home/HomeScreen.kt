@@ -43,6 +43,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.ui.components.*
 import com.theblankstate.epmanager.ui.theme.*
+import com.theblankstate.epmanager.ui.sms.SmsSettingsViewModel
+import com.theblankstate.epmanager.ui.sms.ScanOption
+import com.theblankstate.epmanager.ui.sms.ScanOptionsSheet
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import java.text.SimpleDateFormat
@@ -98,7 +101,8 @@ fun HomeScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToHistory: (String, String) -> Unit = { _, _ -> },
     viewModel: HomeViewModel = hiltViewModel(),
-    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
+    currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel(),
+    smsSettingsViewModel: SmsSettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
@@ -108,30 +112,62 @@ fun HomeScreen(
     // Quick actions sheet state
     var showQuickActionsSheet by remember { mutableStateOf(false) }
     
+    // SMS Scan dialog states
+    val smsUiState by smsSettingsViewModel.uiState.collectAsState()
+    var showScanDialog by remember { mutableStateOf(false) }
+    var showScanResult by remember { mutableStateOf(false) }
+    
     // Force refresh data every time this screen becomes visible
     LaunchedEffect(Unit) {
         viewModel.refresh()
     }
     
+    // Scan Result Dialog trigger
+    LaunchedEffect(smsUiState.scanProgress?.isComplete) {
+        if (smsUiState.scanProgress?.isComplete == true) {
+            showScanResult = true
+            // Refresh transactions after scan completes
+            viewModel.refresh()
+        }
+    }
+    
     Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNavigateToAddTransaction,
-                icon = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                horizontalAlignment = Alignment.End
+            ) {
+                // Scan SMS FAB
+                FloatingActionButton(
+                    onClick = { showScanDialog = true },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
                     Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = "Add Transaction"
+                        imageVector = Icons.Filled.Email,
+                        contentDescription = "Scan SMS"
                     )
-                },
-                text = {
-                    Text(
-                        text = "Add",
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+                }
+                
+                // Add Transaction FAB (primary)
+                ExtendedFloatingActionButton(
+                    onClick = onNavigateToAddTransaction,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = "Add Transaction"
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "Add",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     ) { paddingValues ->
         if (uiState.isLoading) {
@@ -406,6 +442,81 @@ fun HomeScreen(
                 if (type != null && id != null) {
                     viewModel.dismissDueSheet()
                     onNavigateToHistory(type, id)
+                }
+            }
+        )
+    }
+    
+    // SMS Scan Options Sheet
+    if (showScanDialog) {
+        ScanOptionsSheet(
+            onDismiss = { showScanDialog = false },
+            onScan = { option, date ->
+                smsSettingsViewModel.scanSms(option, date)
+                showScanDialog = false
+            }
+        )
+    }
+    
+    // SMS Scan Progress Dialog
+    if (smsUiState.isScanning) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Scanning SMS...") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Scanned:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${smsUiState.scanProgress?.scanned ?: 0}", fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Transactions Found:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${smsUiState.scanProgress?.found ?: 0}", fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("New Added:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${smsUiState.scanProgress?.new ?: 0}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+    
+    // SMS Scan Result Dialog
+    if (showScanResult && !smsUiState.isScanning) {
+        AlertDialog(
+            onDismissRequest = { 
+                showScanResult = false
+                smsSettingsViewModel.clearScanProgress()
+            },
+            icon = { Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Scan Complete") },
+            text = {
+                Text(
+                    "Scanned ${smsUiState.scanProgress?.scanned} messages.\n" +
+                    "Found ${smsUiState.scanProgress?.new} new transactions."
+                )
+            },
+            confirmButton = {
+                Button(onClick = { 
+                    showScanResult = false
+                    smsSettingsViewModel.clearScanProgress()
+                }) {
+                    Text("Done")
                 }
             }
         )

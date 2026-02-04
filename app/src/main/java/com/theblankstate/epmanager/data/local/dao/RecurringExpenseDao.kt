@@ -46,4 +46,23 @@ interface RecurringExpenseDao {
     
     @Query("DELETE FROM recurring_expenses")
     suspend fun deleteAllRecurringExpenses()
+    
+    /**
+     * Find recurring expenses that match SMS transaction criteria
+     * Used for smart duplicate detection when SMS autopay arrives
+     */
+    @Query("""
+        SELECT * FROM recurring_expenses 
+        WHERE isActive = 1 
+        AND accountId = :accountId
+        AND amount BETWEEN :minAmount AND :maxAmount
+        AND nextDueDate BETWEEN :startDate AND :endDate
+    """)
+    suspend fun findMatchingRecurringExpense(
+        accountId: String,
+        minAmount: Double,
+        maxAmount: Double,
+        startDate: Long,
+        endDate: Long
+    ): List<RecurringExpense>
 }

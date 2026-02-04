@@ -169,4 +169,33 @@ class AccountRepository @Inject constructor(
     fun getBankSuggestions(): List<BankRegistry.BankInfo> {
         return BankRegistry.banks + BankRegistry.upiProviders
     }
+    
+    /**
+     * Add a sender ID to an existing linked account
+     * Used when linking uncategorized SMS senders to bank accounts
+     */
+    suspend fun addSenderIdToAccount(accountId: String, senderId: String): Boolean {
+        val account = accountDao.getAccountById(accountId) ?: return false
+        val normalizedSenderId = senderId.trim().uppercase()
+        
+        val existingSenders = account.linkedSenderIds
+            ?.split(",")
+            ?.map { it.trim().uppercase() }
+            ?.filter { it.isNotEmpty() }
+            ?.toMutableList() 
+            ?: mutableListOf()
+        
+        // Check if already exists
+        if (existingSenders.contains(normalizedSenderId)) {
+            return false
+        }
+        
+        existingSenders.add(normalizedSenderId)
+        val updated = account.copy(
+            linkedSenderIds = existingSenders.joinToString(","),
+            isLinked = true // Ensure account is marked as linked
+        )
+        accountDao.updateAccount(updated)
+        return true
+    }
 }

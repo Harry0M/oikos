@@ -12,7 +12,20 @@ import java.util.regex.Pattern
  * - Extracts last 4 digits of account/card for matching
  * - Extracts merchant/description
  */
-class SmsParser {
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Parses bank SMS messages to extract transaction details
+ * 
+ * Key features:
+ * - Extracts amount, transaction type (debit/credit)
+ * - Detects bank from sender ID
+ * - Extracts last 4 digits of account/card for matching
+ * - Extracts merchant/description
+ */
+@Singleton
+class SmsParser @Inject constructor() {
     
     data class ParsedTransaction(
         val amount: Double,
@@ -58,11 +71,208 @@ class SmsParser {
             "transfer from", "cashback", "added"
         )
         
-        // Patterns to extract merchant/description
+        // SMS types to IGNORE - these are NOT transactions
+        private val exclusionKeywords = listOf(
+            "auto-pay activated",
+            "auto-pay cancelled",
+            "autopay activated",
+            "autopay cancelled", 
+            "autopay registered",
+            "autopay deregistered",
+            "mandate registered",
+            "mandate created",
+            "standing instruction",
+            "si created",
+            "si registered",
+            "otp is",
+            "otp for",
+            "one time password",
+            "verification code",
+            "login otp",
+            "transaction otp",
+            "alert:",
+            "reminder:",
+            "emi due",
+            "bill due",
+            "payment due",
+            "minimum amount due",
+            "statement generated",
+            "statement ready",
+            "reward points",
+            "loyalty points",
+            "upgrade your",
+            "offer:",
+            "exclusive offer",
+            "pre-approved",
+            "preapproved",
+            "apply now",
+            "activate now",
+            "link your",
+            "kyc update",
+            "kyc pending"
+        )
+        
+        // Merchant to category mapping for auto-categorization
+        val merchantCategoryMap = mapOf(
+            // Food & Dining
+            "swiggy" to "food",
+            "zomato" to "food",
+            "uber eats" to "food",
+            "dominos" to "food",
+            "pizza hut" to "food",
+            "mcdonalds" to "food",
+            "starbucks" to "food",
+            "cafe coffee day" to "food",
+            "dunkin" to "food",
+            "restaurant" to "food",
+            "cafe" to "food",
+            "bakery" to "food",
+            "food" to "food",
+            
+            // Shopping
+            "amazon" to "shopping",
+            "flipkart" to "shopping",
+            "myntra" to "shopping",
+            "ajio" to "shopping",
+            "meesho" to "shopping",
+            "nykaa" to "shopping",
+            "bigbasket" to "shopping",
+            "blinkit" to "shopping",
+            "zepto" to "shopping",
+            "instamart" to "shopping",
+            "dmart" to "shopping",
+            "reliance" to "shopping",
+            "shoppers stop" to "shopping",
+            "lifestyle" to "shopping",
+            
+            // Transportation
+            "uber" to "transportation",
+            "ola" to "transportation",
+            "rapido" to "transportation",
+            "meru" to "transportation",
+            "irctc" to "transportation",
+            "redbus" to "transportation",
+            "makemytrip" to "transportation",
+            "goibibo" to "transportation",
+            "petrol" to "transportation",
+            "fuel" to "transportation",
+            "bp" to "transportation",
+            "indian oil" to "transportation",
+            "hindustan petroleum" to "transportation",
+            "hp petrol" to "transportation",
+            "metro" to "transportation",
+            "toll" to "transportation",
+            "fastag" to "transportation",
+            "parking" to "transportation",
+            
+            // Bills & Utilities
+            "electricity" to "bills",
+            "water bill" to "bills",
+            "gas bill" to "bills",
+            "broadband" to "bills",
+            "wifi" to "bills",
+            "jio" to "bills",
+            "airtel" to "bills",
+            "vodafone" to "bills",
+            "vi postpaid" to "bills",
+            "bsnl" to "bills",
+            "tata play" to "bills",
+            "dish tv" to "bills",
+            "dth" to "bills",
+            
+            // Entertainment
+            "netflix" to "entertainment",
+            "hotstar" to "entertainment",
+            "disney" to "entertainment",
+            "amazon prime" to "entertainment",
+            "spotify" to "entertainment",
+            "youtube" to "entertainment",
+            "gaana" to "entertainment",
+            "wynk" to "entertainment",
+            "pvr" to "entertainment",
+            "inox" to "entertainment",
+            "bookmyshow" to "entertainment",
+            "cinema" to "entertainment",
+            "multiplex" to "entertainment",
+            "gaming" to "entertainment",
+            "playstation" to "entertainment",
+            "xbox" to "entertainment",
+            "steam" to "entertainment",
+            
+            // Technology & Software
+            "google cloud" to "technology",
+            "google ads" to "technology",
+            "google" to "technology",
+            "microsoft" to "technology",
+            "azure" to "technology",
+            "aws" to "technology",
+            "apple" to "technology",
+            "canva" to "technology",
+            "adobe" to "technology",
+            "github" to "technology",
+            "figma" to "technology",
+            "notion" to "technology",
+            "slack" to "technology",
+            "zoom" to "technology",
+            "chatgpt" to "technology",
+            "openai" to "technology",
+            
+            // Health & Medical
+            "pharmacy" to "health",
+            "medical" to "health",
+            "hospital" to "health",
+            "clinic" to "health",
+            "doctor" to "health",
+            "apollo" to "health",
+            "medplus" to "health",
+            "netmeds" to "health",
+            "pharmeasy" to "health",
+            "1mg" to "health",
+            "practo" to "health",
+            "gym" to "health",
+            "fitness" to "health",
+            "cult.fit" to "health",
+            
+            // Education
+            "school" to "education",
+            "college" to "education",
+            "university" to "education",
+            "udemy" to "education",
+            "coursera" to "education",
+            "unacademy" to "education",
+            "byju" to "education",
+            "vedantu" to "education",
+            "upgrad" to "education",
+            "books" to "education",
+            
+            // Insurance
+            "insurance" to "insurance",
+            "lic" to "insurance",
+            "hdfc life" to "insurance",
+            "icici prudential" to "insurance",
+            "sbi life" to "insurance",
+            "policy" to "insurance",
+            
+            // Investment
+            "zerodha" to "investment",
+            "groww" to "investment",
+            "upstox" to "investment",
+            "kite" to "investment",
+            "mutual fund" to "investment",
+            "mf" to "investment",
+            "sip" to "investment"
+        )
+        
+        // Improved patterns to extract merchant/business name
         private val merchantPatterns = listOf(
-            Pattern.compile("(?:at|to|for|@)\\s+([A-Za-z0-9][A-Za-z0-9\\s]*?)(?:\\s+on|\\.|$)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("(?:VPA|UPI)[:\\s]+([^\\s]+)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("Info[:\\s]+([^.]+)", Pattern.CASE_INSENSITIVE)
+            // Business name before VPA: "to BusinessName (merchant@upi)" or "to BusinessName merchant@upi"
+            Pattern.compile("(?:to|paid to)\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,40})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE),
+            // Generic "at/to/for" pattern
+            Pattern.compile("(?:at|to|for|@)\\s+([A-Za-z0-9][A-Za-z0-9\\s&'.,-]*?)(?:\\s+on|\\s+ref|\\.|\\s+VPA|$)", Pattern.CASE_INSENSITIVE),
+            // Info: field pattern
+            Pattern.compile("Info[:\\s]+([^.]+)", Pattern.CASE_INSENSITIVE),
+            // Payee name pattern
+            Pattern.compile("payee[:\\s]+([A-Za-z][A-Za-z0-9\\s&'.,-]+)", Pattern.CASE_INSENSITIVE)
         )
         
         // Pattern for account/card last digits
@@ -84,31 +294,43 @@ class SmsParser {
             Pattern.compile("atm\\s*card", Pattern.CASE_INSENSITIVE)
         )
         
-        // UPI ID pattern
-        private val upiPattern = Pattern.compile("(?:VPA|UPI)[:\\s]+([a-zA-Z0-9._-]+@[a-zA-Z]+)", Pattern.CASE_INSENSITIVE)
+        // Improved UPI ID patterns - handles various formats
+        private val upiPatterns = listOf(
+            // VPA: user@upi or UPI: user@upi
+            Pattern.compile("(?:VPA|UPI)[:\\s]+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)", Pattern.CASE_INSENSITIVE),
+            // (user@upi) in parentheses
+            Pattern.compile("\\(([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)\\)", Pattern.CASE_INSENSITIVE),
+            // to user@upi or from user@upi
+            Pattern.compile("(?:to|from)\\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9]+)", Pattern.CASE_INSENSITIVE),
+            // Standalone UPI format
+            Pattern.compile("\\b([a-zA-Z0-9._-]{3,}@(?:upi|ybl|paytm|okhdfcbank|okaxis|oksbi|okicici|axl|ibl|apl|fbl|waaxis|wahdfcbank|wasbi|waicici|axisb|hdfcbank|icici|sbi|yesbank|kotak|indus|federal|rbl|bob|citi|pnb|idbi|dbs))\\b", Pattern.CASE_INSENSITIVE)
+        )
         
         // Reference number patterns - matches "ref:123456" or "ref: 123456" or "Ref no: 123456"
         private val refPatterns = listOf(
             Pattern.compile("ref[:\\s.#]*([0-9]{8,20})", Pattern.CASE_INSENSITIVE),
             Pattern.compile("reference[:\\s.#]*([0-9]{8,20})", Pattern.CASE_INSENSITIVE),
             Pattern.compile("UTR[:\\s]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("txn[:\\s.#]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("txn[:\\s.#]*([A-Za-z0-9]+)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("UPI[:\\s]*([0-9]{12})", Pattern.CASE_INSENSITIVE)
         )
         
         // Sender patterns (for credits - who sent money)
-        // Matches: "from Person Name" or "from PERSON NAME"
         private val senderPatterns = listOf(
-            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+(?:ref|on|\\.|$))", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+(?:ref|on|via|\\.|\\(|$))", Pattern.CASE_INSENSITIVE),
             Pattern.compile("from\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("credited\\s+by\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+|$)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("credited\\s+by\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+|$)", Pattern.CASE_INSENSITIVE),
+            // Sender before UPI ID: "from SenderName (sender@upi)"
+            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
         )
         
         // Receiver patterns (for debits - who received money)
-        // Matches: "to Person Name" or "to PERSON NAME"
         private val receiverPatterns = listOf(
-            Pattern.compile("to\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+(?:ref|on|\\.|$))", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("to\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+(?:ref|on|via|\\.|\\(|$))", Pattern.CASE_INSENSITIVE),
             Pattern.compile("to\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("paid\\s+to\\s+([A-Za-z][A-Za-z0-9\\s]{2,30})(?:\\s+|$)", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("paid\\s+to\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+|$)", Pattern.CASE_INSENSITIVE),
+            // Receiver before UPI ID: "to ReceiverName (receiver@upi)"
+            Pattern.compile("(?:to|paid to)\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
         )
         
         // Bank sender IDs to identify transaction SMS
@@ -142,15 +364,20 @@ class SmsParser {
      * Returns null if not a transaction SMS
      */
     fun parse(message: String, senderId: String = ""): ParsedTransaction? {
-        // First, check if this looks like a transaction SMS
         val lowerMessage = message.lowercase()
+        
+        // FIRST: Check for exclusion keywords - these are NOT transactions
+        val isExcluded = exclusionKeywords.any { lowerMessage.contains(it) }
+        if (isExcluded) return null
+        
+        // SECOND: Must have EXPLICIT debit or credit keyword for a transaction
         val hasDebitKeyword = debitKeywords.any { lowerMessage.contains(it) }
         val hasCreditKeyword = creditKeywords.any { lowerMessage.contains(it) }
         
+        // If no explicit transaction keyword, this is NOT a transaction
+        // (Prevents amount-only SMS like "Auto-Pay for INR 75000" from being logged)
         if (!hasDebitKeyword && !hasCreditKeyword) {
-            // Check for amount patterns as fallback
-            val hasAmount = amountPatterns.any { it.matcher(message).find() }
-            if (!hasAmount) return null
+            return null
         }
         
         // Extract amount
@@ -203,11 +430,14 @@ class SmsParser {
             else -> null
         }
         
-        // Extract UPI ID if present
+        // Extract UPI ID if present (try all patterns)
         var upiId: String? = null
-        val upiMatcher = upiPattern.matcher(message)
-        if (upiMatcher.find()) {
-            upiId = upiMatcher.group(1)
+        for (pattern in upiPatterns) {
+            val matcher = pattern.matcher(message)
+            if (matcher.find()) {
+                upiId = matcher.group(1)
+                if (!upiId.isNullOrBlank()) break
+            }
         }
         
         // Extract reference number

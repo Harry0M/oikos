@@ -38,6 +38,9 @@ interface SmsTemplateDao {
     @Query("SELECT COUNT(*) FROM sms_templates")
     suspend fun getTemplateCount(): Int
     
+    @Query("SELECT * FROM sms_templates WHERE LOWER(bankName) = LOWER(:bankName) LIMIT 1")
+    suspend fun getTemplateByBankName(bankName: String): SmsTemplate?
+    
     // ========== PENDING SMS ==========
     
     @Query("SELECT * FROM pending_sms WHERE status = :status ORDER BY receivedAt DESC")

@@ -14,6 +14,7 @@ import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
 import com.theblankstate.epmanager.data.local.dao.SplitDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
 import com.theblankstate.epmanager.data.local.dao.NotificationDao
+import com.theblankstate.epmanager.data.local.dao.AvailableBankDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -109,5 +110,11 @@ object DatabaseModule {
     @Singleton
     fun provideNotificationDao(database: ExpenseDatabase): NotificationDao {
         return database.notificationDao()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideAvailableBankDao(database: ExpenseDatabase): AvailableBankDao {
+        return database.availableBankDao()
     }
 }

@@ -1,8 +1,15 @@
 package com.theblankstate.epmanager.ui.transactions
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +34,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.TransactionType
 import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.theme.*
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -41,11 +51,25 @@ fun TransactionDetailScreen(
     val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
+    var showLinkDialog by remember { mutableStateOf(false) }
     
     // Navigate back when deleted
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) {
             onNavigateBack()
+        }
+    }
+    
+    // Show success/error toasts
+    LaunchedEffect(uiState.successMessage, uiState.error) {
+        uiState.successMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearMessages()
+        }
+        uiState.error?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearMessages()
         }
     }
     
@@ -310,13 +334,35 @@ fun TransactionDetailScreen(
                                 
                                 HorizontalDivider()
                                 
-                                // SMS Sender (Bank)
+                                // SMS Sender (Bank) with optional Link button
                                 if (!transaction.smsSender.isNullOrBlank()) {
-                                    DetailRow(
-                                        icon = Icons.Filled.Sms,
-                                        label = "From Bank",
-                                        value = transaction.smsSender
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        DetailRow(
+                                            icon = Icons.Filled.Sms,
+                                            label = "From Bank",
+                                            value = transaction.smsSender,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        
+                                        // Show Link button if transaction has no linked account
+                                        if (transaction.accountId == null && uiState.linkedAccounts.isNotEmpty()) {
+                                            TextButton(
+                                                onClick = { showLinkDialog = true }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Link,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Link", style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
                                 }
                                 
                                 // Sender (for credits)
@@ -347,13 +393,27 @@ fun TransactionDetailScreen(
                                     )
                                 }
                                 
-                                // UPI ID
+                                // UPI ID with QR Code button
                                 if (!transaction.upiId.isNullOrBlank()) {
                                     DetailRow(
                                         icon = Icons.Filled.QrCode,
                                         label = "UPI ID",
                                         value = transaction.upiId
                                     )
+                                    
+                                    // Show QR Code button
+                                    OutlinedButton(
+                                        onClick = { showQrDialog = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.QrCode2,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.xs))
+                                        Text("View QR Code")
+                                    }
                                 }
                                 
                                 // Reference Number
@@ -367,6 +427,15 @@ fun TransactionDetailScreen(
                             }
                         }
                         
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                    }
+                    
+                    // Original SMS Section
+                    if (!transaction.originalSms.isNullOrBlank()) {
+                        OriginalSmsCard(
+                            sms = transaction.originalSms,
+                            smsSender = transaction.smsSender
+                        )
                         Spacer(modifier = Modifier.height(Spacing.md))
                     }
                     
@@ -600,37 +669,460 @@ fun TransactionDetailScreen(
             }
         )
     }
+    
+    // UPI QR Code Dialog
+    if (showQrDialog && uiState.transaction?.upiId != null) {
+        UpiQrCodeDialog(
+            upiId = uiState.transaction!!.upiId!!,
+            amount = uiState.transaction!!.amount,
+            onDismiss = { showQrDialog = false }
+        )
+    }
+    
+    // Link to Account Dialog
+    if (showLinkDialog && uiState.transaction?.smsSender != null) {
+        LinkToAccountDialog(
+            senderId = uiState.transaction!!.smsSender!!,
+            accounts = uiState.linkedAccounts,
+            onAccountSelected = { accountId ->
+                viewModel.linkSenderToAccount(uiState.transaction!!.smsSender!!, accountId)
+            },
+            onDismiss = { showLinkDialog = false }
+        )
+    }
 }
 
 @Composable
 private fun DetailRow(
     icon: ImageVector,
     label: String,
-    value: String
+    value: String,
+    showCopy: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
-        Column {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+        
+        if (showCopy) {
+            IconButton(
+                onClick = { copyToClipboard(context, label, value) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ContentCopy,
+                    contentDescription = "Copy $label",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
+}
+
+/**
+ * Copy text to clipboard and show toast
+ */
+private fun copyToClipboard(context: Context, label: String, value: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(label, value)
+    clipboard.setPrimaryClip(clip)
+    Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+}
+
+/**
+ * Generate QR code bitmap for UPI payment
+ */
+private fun generateUpiQrCode(upiId: String, amount: Double? = null): Bitmap? {
+    return try {
+        val upiUri = buildString {
+            append("upi://pay?pa=$upiId")
+            append("&pn=Payment")
+            if (amount != null && amount > 0) {
+                append("&am=$amount")
+            }
+            append("&cu=INR")
+        }
+        
+        val writer = QRCodeWriter()
+        val bitMatrix = writer.encode(upiUri, BarcodeFormat.QR_CODE, 512, 512)
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        
+        for (x in 0 until width) {
+            for (y in 0 until height) {                bitmap.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * Original SMS Card with expandable view and copy functionality
+ */
+@Composable
+private fun OriginalSmsCard(
+    sms: String,
+    smsSender: String?
+) {
+    val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.md),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Sms,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Original SMS",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    IconButton(
+                        onClick = { copyToClipboard(context, "SMS", sms) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentCopy,
+                            contentDescription = "Copy SMS",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+            
+            if (!smsSender.isNullOrBlank()) {
+                Text(
+                    text = "From: $smsSender",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
+                Text(
+                    text = sms,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+    }
+}
+
+/**
+ * UPI Details Dialog - Shows QR code, UPI ID with options to copy and pay
+ */
+@Composable
+private fun UpiQrCodeDialog(
+    upiId: String,
+    amount: Double,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val qrBitmap = remember(upiId, amount) { generateUpiQrCode(upiId, amount) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Text(
+                text = "UPI Payment QR",
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                // QR Code Image
+                if (qrBitmap != null) {
+                    Card(
+                        modifier = Modifier.size(200.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "UPI QR Code",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(8.dp)
+                        )
+                    }
+                } else {
+                    // Fallback if QR generation fails
+                    Box(
+                        modifier = Modifier
+                            .size(200.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Filled.QrCode,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text("QR generation failed")
+                        }
+                    }
+                }
+                
+                // UPI ID display
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "UPI ID",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = upiId,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                
+                // Copy button
+                OutlinedButton(
+                    onClick = { copyToClipboard(context, "UPI ID", upiId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Copy UPI ID")
+                }
+                
+                // Pay with UPI button
+                Button(
+                    onClick = {
+                        try {
+                            val upiUri = Uri.parse(buildString {
+                                append("upi://pay?pa=$upiId")
+                                append("&pn=Payment")
+                                if (amount > 0) {
+                                    append("&am=$amount")
+                                }
+                                append("&cu=INR")
+                            })
+                            val intent = Intent(Intent.ACTION_VIEW, upiUri)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "No UPI app found", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Payment,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                    Text("Pay with UPI App")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+/**
+ * Dialog to select a bank account to link the SMS sender to
+ */
+@Composable
+private fun LinkToAccountDialog(
+    senderId: String,
+    accounts: List<com.theblankstate.epmanager.data.model.Account>,
+    onAccountSelected: (accountId: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Text(
+                text = "Link Sender to Account",
+                style = MaterialTheme.typography.titleLarge
+            ) 
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Text(
+                    text = "Link \"$senderId\" to:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                if (accounts.isEmpty()) {
+                    Text(
+                        text = "No linked accounts found. Create a linked bank account first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    accounts.forEach { account ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { 
+                                    onAccountSelected(account.id)
+                                    onDismiss()
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.md),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(account.color)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.AccountBalance,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = account.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (!account.linkedSenderIds.isNullOrBlank()) {
+                                        Text(
+                                            text = "Senders: ${account.linkedSenderIds}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                
+                                Icon(
+                                    imageVector = Icons.Filled.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

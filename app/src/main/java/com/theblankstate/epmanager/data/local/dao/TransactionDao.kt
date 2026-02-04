@@ -136,4 +136,73 @@ interface TransactionDao {
     
     @Query("SELECT * FROM transactions WHERE date BETWEEN :startDate AND :endDate")
     suspend fun getTransactionsBetweenDatesSync(startDate: Long, endDate: Long): List<Transaction>
+    
+    // ========== DUPLICATE CHECKING ==========
+    
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE smsSender = :sender 
+        AND amount = :amount 
+        AND date BETWEEN :startTime AND :endTime
+    """)
+    suspend fun findPotentialDuplicates(sender: String, amount: Double, startTime: Long, endTime: Long): List<Transaction>
+
+    @Query("SELECT * FROM transactions WHERE refNumber = :refNumber LIMIT 1")
+    suspend fun findByReferenceNumber(refNumber: String): Transaction?
+    
+    /**
+     * Find existing transaction linked to a recurring expense within a date range
+     * Used to avoid duplicates when SMS confirms an existing recurring payment
+     */
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE recurringId = :recurringId 
+        AND date BETWEEN :startDate AND :endDate
+        LIMIT 1
+    """)
+    suspend fun findRecurringTransaction(
+        recurringId: String,
+        startDate: Long,
+        endDate: Long
+    ): Transaction?
+    
+    /**
+     * Update an existing transaction with SMS details when SMS confirms a recurring payment
+     */
+    @Query("""
+        UPDATE transactions SET 
+            smsSender = :smsSender,
+            originalSms = :originalSms,
+            refNumber = :refNumber,
+            upiId = :upiId,
+            merchantName = :merchantName,
+            senderName = :senderName,
+            receiverName = :receiverName,
+            updatedAt = :updatedAt
+        WHERE id = :transactionId
+    """)
+    suspend fun updateTransactionWithSmsDetails(
+        transactionId: String,
+        smsSender: String?,
+        originalSms: String?,
+        refNumber: String?,
+        upiId: String?,
+        merchantName: String?,
+        senderName: String?,
+        receiverName: String?,
+        updatedAt: Long = System.currentTimeMillis()
+    )
+    
+    /**
+     * Get distinct SMS sender IDs that are not linked to any account
+     * Used to show suggestions when adding custom banks
+     */
+    @Query("""
+        SELECT DISTINCT smsSender FROM transactions 
+        WHERE smsSender IS NOT NULL 
+        AND smsSender != ''
+        AND accountId IS NULL
+        ORDER BY smsSender ASC
+    """)
+    fun getUncategorizedSmsSenders(): Flow<List<String>>
 }

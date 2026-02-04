@@ -18,9 +18,11 @@ data class TransactionDetailUiState(
     val transaction: Transaction? = null,
     val category: Category? = null,
     val account: Account? = null,
+    val linkedAccounts: List<Account> = emptyList(),
     val isLoading: Boolean = true,
     val isDeleted: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val successMessage: String? = null
 )
 
 @HiltViewModel
@@ -38,6 +40,7 @@ class TransactionDetailViewModel @Inject constructor(
     
     init {
         loadTransaction()
+        loadLinkedAccounts()
     }
     
     private fun loadTransaction() {
@@ -80,6 +83,41 @@ class TransactionDetailViewModel @Inject constructor(
                 }
             }
         }
+    }
+    
+    private fun loadLinkedAccounts() {
+        viewModelScope.launch {
+            accountRepository.getLinkedAccounts().collect { accounts ->
+                _uiState.update { it.copy(linkedAccounts = accounts) }
+            }
+        }
+    }
+    
+    /**
+     * Link SMS sender ID to selected account
+     */
+    fun linkSenderToAccount(senderId: String, accountId: String) {
+        viewModelScope.launch {
+            try {
+                val success = accountRepository.addSenderIdToAccount(accountId, senderId)
+                if (success) {
+                    val account = accountRepository.getAccountById(accountId)
+                    _uiState.update { 
+                        it.copy(successMessage = "Sender linked to ${account?.name ?: "account"}") 
+                    }
+                } else {
+                    _uiState.update { 
+                        it.copy(error = "Sender already linked to this account") 
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message ?: "Failed to link sender") }
+            }
+        }
+    }
+    
+    fun clearMessages() {
+        _uiState.update { it.copy(error = null, successMessage = null) }
     }
     
     fun deleteTransaction() {

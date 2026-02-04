@@ -18,6 +18,8 @@ import com.theblankstate.epmanager.data.local.dao.SplitDao
 import com.theblankstate.epmanager.data.local.dao.TermsAcceptanceDao
 import com.theblankstate.epmanager.data.local.dao.TransactionDao
 import com.theblankstate.epmanager.data.local.dao.NotificationDao
+import com.theblankstate.epmanager.data.local.dao.AvailableBankDao
+import com.theblankstate.epmanager.data.model.AvailableBank
 import com.theblankstate.epmanager.data.model.Account
 import com.theblankstate.epmanager.data.model.Budget
 import com.theblankstate.epmanager.data.model.Category
@@ -58,9 +60,10 @@ import com.theblankstate.epmanager.data.model.AppNotification
         Debt::class,
         DebtPayment::class,
         TermsAcceptance::class,
-        AppNotification::class
+        AppNotification::class,
+        AvailableBank::class
     ],
-    version = 16, // Added AppNotification for notification history
+    version = 18, // Added AvailableBank entity for user-specific bank repository
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -76,6 +79,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun debtDao(): DebtDao
     abstract fun termsAcceptanceDao(): TermsAcceptanceDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun availableBankDao(): AvailableBankDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"
@@ -123,13 +127,86 @@ abstract class ExpenseDatabase : RoomDatabase() {
                         database.execSQL("CREATE INDEX IF NOT EXISTS index_app_notifications_isRead ON app_notifications(isRead)")
                     }
                 }
+                
+                val MIGRATION_16_17 = object : Migration(16, 17) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        database.execSQL("ALTER TABLE transactions ADD COLUMN originalSms TEXT DEFAULT NULL")
+                    }
+                }
+                
+                // Migration to add available_banks table and migrate data from sms_templates
+                val MIGRATION_17_18 = object : Migration(17, 18) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        // Create the new available_banks table
+                        database.execSQL("""
+                            CREATE TABLE IF NOT EXISTS available_banks (
+                                id TEXT PRIMARY KEY NOT NULL,
+                                bankCode TEXT NOT NULL,
+                                bankName TEXT NOT NULL,
+                                senderIds TEXT NOT NULL,
+                                color INTEGER NOT NULL DEFAULT 4282679030,
+                                transactionCount INTEGER NOT NULL DEFAULT 0,
+                                lastTransactionDate INTEGER NOT NULL DEFAULT 0,
+                                sampleSms TEXT,
+                                source TEXT NOT NULL DEFAULT 'CUSTOM',
+                                isKnownBank INTEGER NOT NULL DEFAULT 0,
+                                amountPattern TEXT,
+                                accountPattern TEXT,
+                                merchantPattern TEXT,
+                                debitKeywords TEXT,
+                                creditKeywords TEXT,
+                                linkedAccountId TEXT,
+                                isActive INTEGER NOT NULL DEFAULT 1,
+                                usageCount INTEGER NOT NULL DEFAULT 0,
+                                lastUsedAt INTEGER,
+                                createdAt INTEGER NOT NULL,
+                                updatedAt INTEGER NOT NULL
+                            )
+                        """.trimIndent())
+                        
+                        // Migrate existing sms_templates to available_banks
+                        database.execSQL("""
+                            INSERT INTO available_banks (
+                                id, bankCode, bankName, senderIds, color, transactionCount,
+                                lastTransactionDate, sampleSms, source, isKnownBank,
+                                amountPattern, accountPattern, merchantPattern,
+                                debitKeywords, creditKeywords, linkedAccountId,
+                                isActive, usageCount, lastUsedAt, createdAt, updatedAt
+                            )
+                            SELECT 
+                                id,
+                                UPPER(REPLACE(bankName, ' ', '_')),
+                                bankName,
+                                senderIds,
+                                4282679030,
+                                usageCount,
+                                COALESCE(lastUsedAt, createdAt),
+                                sampleSms,
+                                'CUSTOM',
+                                0,
+                                amountPattern,
+                                accountPattern,
+                                merchantPattern,
+                                debitKeywords,
+                                creditKeywords,
+                                linkedAccountId,
+                                isActive,
+                                usageCount,
+                                lastUsedAt,
+                                createdAt,
+                                createdAt
+                            FROM sms_templates
+                            WHERE isCustom = 1
+                        """.trimIndent())
+                    }
+                }
 
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
