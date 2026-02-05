@@ -117,4 +117,10 @@ object DatabaseModule {
     fun provideAvailableBankDao(database: ExpenseDatabase): AvailableBankDao {
         return database.availableBankDao()
     }
+    
+    @Provides
+    @Singleton
+    fun provideCategorizationRuleDao(database: ExpenseDatabase): com.theblankstate.epmanager.data.local.dao.CategorizationRuleDao {
+        return database.categorizationRuleDao()
+    }
 }

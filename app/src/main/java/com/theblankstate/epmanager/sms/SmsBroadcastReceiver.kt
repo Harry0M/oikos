@@ -117,6 +117,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     private suspend fun processSmsFast(context: Context, body: String, sender: String) {
         val db = ExpenseDatabase.getInstance(context)
         val accountRepository = AccountRepository(db.accountDao())
+        val categorizer = com.theblankstate.epmanager.domain.TransactionCategorizer(db.categorizationRuleDao())
         
         // CRITICAL: Check if this sender has a linked account
         // If no linked account matches, skip processing entirely
@@ -137,13 +138,13 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         
         if (regexParsed != null && regexParsed.amount > 0) {
             // We got a valid parse, save immediately
-            saveTransactionFromRegex(context, db, regexParsed, sender, location, locationName)
+            saveTransactionFromRegex(context, db, categorizer, regexParsed, sender, location, locationName)
         } else {
             // Regex failed, save as pending and try AI
             savePendingSms(db, body, sender)
             
             // Try AI parsing in background (don't block)
-            tryAiParsingInBackground(context, db, body, sender, location, locationName)
+            tryAiParsingInBackground(context, db, categorizer, body, sender, location, locationName)
         }
     }
     
@@ -185,6 +186,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     private suspend fun saveTransactionFromRegex(
         context: Context,
         db: ExpenseDatabase,
+        categorizer: com.theblankstate.epmanager.domain.TransactionCategorizer,
         parsed: SmsParser.ParsedTransaction,
         sender: String,
         location: Location?,
@@ -232,7 +234,11 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                     return
                 } else {
                     // No existing transaction - create new one linked to recurring
-                    val categoryId = tryDetectCategory(db, parsed.merchantName) ?: matchedRecurring.categoryId
+                    val categoryId = categorizer.categorize(
+                        merchantName = parsed.merchantName,
+                        upiId = parsed.upiId,
+                        sender = sender
+                    ) ?: matchedRecurring.categoryId
                     
                     val transaction = Transaction(
                         amount = parsed.amount,
@@ -279,7 +285,11 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
         // ========== END SMART DUPLICATE DETECTION ==========
         
         // No recurring match found - create normal transaction
-        val categoryId = tryDetectCategory(db, parsed.merchantName)
+        val categoryId = categorizer.categorize(
+            merchantName = parsed.merchantName,
+            upiId = parsed.upiId,
+            sender = sender
+        ) ?: "bills"
         
         val transaction = Transaction(
             amount = parsed.amount,
@@ -389,6 +399,7 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
     private fun tryAiParsingInBackground(
         context: Context,
         db: ExpenseDatabase,
+        categorizer: com.theblankstate.epmanager.domain.TransactionCategorizer,
         body: String,
         sender: String,
         location: Location?,
@@ -406,7 +417,10 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                         accountRepository, aiResult, sender
                     )
                     
-                    val categoryId = tryDetectCategory(db, aiResult.merchantName)
+                    val categoryId = categorizer.categorize(
+                        merchantName = aiResult.merchantName,
+                        sender = sender
+                    ) ?: "bills"
                     
                     val transaction = Transaction(
                         amount = aiResult.amount,
@@ -446,47 +460,6 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
      * Try to detect category from merchant name
      * Defaults to "bills" for all bank SMS transactions
      */
-    private suspend fun tryDetectCategory(db: ExpenseDatabase, merchantName: String?): String {
-        if (merchantName.isNullOrBlank()) return "bills" // Default for bank SMS
-        
-        // Simple keyword matching for common merchants
-        val lowerMerchant = merchantName.lowercase()
-        
-        return when {
-            // Food
-            lowerMerchant.contains("swiggy") || 
-            lowerMerchant.contains("zomato") ||
-            lowerMerchant.contains("restaurant") ||
-            lowerMerchant.contains("cafe") -> "food"
-            
-            // Shopping
-            lowerMerchant.contains("amazon") ||
-            lowerMerchant.contains("flipkart") ||
-            lowerMerchant.contains("myntra") -> "shopping"
-            
-            // Transport
-            lowerMerchant.contains("uber") ||
-            lowerMerchant.contains("ola") ||
-            lowerMerchant.contains("rapido") ||
-            lowerMerchant.contains("petrol") ||
-            lowerMerchant.contains("fuel") -> "transportation"
-            
-            // Bills
-            lowerMerchant.contains("electricity") ||
-            lowerMerchant.contains("water") ||
-            lowerMerchant.contains("gas") ||
-            lowerMerchant.contains("bill") -> "bills"
-            
-            // Entertainment
-            lowerMerchant.contains("netflix") ||
-            lowerMerchant.contains("spotify") ||
-            lowerMerchant.contains("hotstar") ||
-            lowerMerchant.contains("prime") -> "entertainment"
-            
-            // Default to bills for all bank SMS
-            else -> "bills"
-        }
-    }
     
     private suspend fun updatePendingSmsStatus(
         db: ExpenseDatabase, 

@@ -61,9 +61,10 @@ import com.theblankstate.epmanager.data.model.AppNotification
         DebtPayment::class,
         TermsAcceptance::class,
         AppNotification::class,
-        AvailableBank::class
+        AvailableBank::class,
+        com.theblankstate.epmanager.data.model.CategorizationRule::class
     ],
-    version = 18, // Added AvailableBank entity for user-specific bank repository
+    version = 19, // Added CategorizationRule entity
     exportSchema = false
 )
 abstract class ExpenseDatabase : RoomDatabase() {
@@ -80,6 +81,7 @@ abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun termsAcceptanceDao(): TermsAcceptanceDao
     abstract fun notificationDao(): NotificationDao
     abstract fun availableBankDao(): AvailableBankDao
+    abstract fun categorizationRuleDao(): com.theblankstate.epmanager.data.local.dao.CategorizationRuleDao
     
     companion object {
         const val DATABASE_NAME = "expense_database"
@@ -201,12 +203,27 @@ abstract class ExpenseDatabase : RoomDatabase() {
                     }
                 }
 
+                // Migration to add categorization_rules table
+                val MIGRATION_18_19 = object : Migration(18, 19) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        database.execSQL("""
+                            CREATE TABLE IF NOT EXISTS categorization_rules (
+                                id TEXT PRIMARY KEY NOT NULL,
+                                pattern TEXT NOT NULL,
+                                categoryId TEXT NOT NULL,
+                                createdAt INTEGER NOT NULL
+                            )
+                        """.trimIndent())
+                        database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categorization_rules_pattern ON categorization_rules(pattern)")
+                    }
+                }
+
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

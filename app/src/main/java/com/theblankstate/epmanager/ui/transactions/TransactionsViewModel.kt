@@ -3,9 +3,12 @@ package com.theblankstate.epmanager.ui.transactions
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.theblankstate.epmanager.data.model.Account
+import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.data.model.Category
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.TransactionType
+import com.theblankstate.epmanager.data.repository.AccountRepository
 import com.theblankstate.epmanager.data.repository.CategoryRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +36,16 @@ data class CategoryFilterItem(
 )
 
 /**
+ * Account info for filter chips
+ */
+data class AccountFilterItem(
+    val id: String,
+    val name: String,
+    val type: AccountType,
+    val color: Long
+)
+
+/**
  * Filter options for transaction type
  */
 enum class TypeFilter(val label: String) {
@@ -53,17 +66,36 @@ enum class TimeFilter(val label: String) {
     CUSTOM("Custom")
 }
 
+/**
+ * Filter options for payment method (account type)
+ */
+enum class PaymentMethodFilter(val label: String) {
+    ALL("All"),
+    CASH("Cash"),
+    BANK("Bank"),
+    UPI("UPI"),
+    CREDIT_CARD("Credit Card"),
+    WALLET("Wallet"),
+    OTHER("Other")
+}
+
 data class TransactionsUiState(
     val transactions: List<TransactionWithCategory> = emptyList(),
     val availableCategories: List<CategoryFilterItem> = emptyList(),
+    val availableAccounts: List<AccountFilterItem> = emptyList(),
     val searchQuery: String = "",
     val typeFilter: TypeFilter = TypeFilter.ALL,
     val timeFilter: TimeFilter = TimeFilter.ALL,
     val selectedCategoryId: String? = null,
+    val selectedAccountId: String? = null,
+    val paymentMethodFilter: PaymentMethodFilter = PaymentMethodFilter.ALL,
+    val minAmount: Double? = null,
+    val maxAmount: Double? = null,
     val customStartDate: Long? = null,
     val customEndDate: Long? = null,
     val showDatePicker: Boolean = false,
     val isSelectingStartDate: Boolean = true,
+    val showFilters: Boolean = false,
     val isLoading: Boolean = true
 )
 
@@ -71,6 +103,7 @@ data class TransactionsUiState(
 class TransactionsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
@@ -81,6 +114,10 @@ class TransactionsViewModel @Inject constructor(
     private val typeFilter = MutableStateFlow(TypeFilter.ALL)
     private val timeFilter = MutableStateFlow(TimeFilter.ALL)
     private val selectedCategoryId = MutableStateFlow<String?>(null)
+    private val selectedAccountId = MutableStateFlow<String?>(null)
+    private val paymentMethodFilter = MutableStateFlow(PaymentMethodFilter.ALL)
+    private val minAmount = MutableStateFlow<Double?>(null)
+    private val maxAmount = MutableStateFlow<Double?>(null)
     private val customStartDate = MutableStateFlow<Long?>(null)
     private val customEndDate = MutableStateFlow<Long?>(null)
     
@@ -104,23 +141,51 @@ class TransactionsViewModel @Inject constructor(
         }
         
         // Combine filter states into a single flow
+        // Combine filter states into a single flow
         val filtersFlow = combine(
-            searchQuery,
-            typeFilter,
-            timeFilter,
-            selectedCategoryId,
-            combine(customStartDate, customEndDate) { start, end -> Pair(start, end) }
-        ) { query, type, time, catId, customDates ->
-            FilterState(query, type, time, catId, customDates.first, customDates.second)
+            combine(
+                searchQuery,
+                typeFilter,
+                timeFilter,
+                selectedCategoryId,
+                selectedAccountId
+            ) { query, type, time, catId, accId ->
+                FilterGroup1(query, type, time, catId, accId)
+            },
+            combine(
+                paymentMethodFilter,
+                minAmount,
+                maxAmount,
+                customStartDate,
+                customEndDate
+            ) { payMethod, min, max, start, end ->
+                FilterGroup2(payMethod, min, max, start, end)
+            }
+        ) { group1, group2 ->
+            FilterState(
+                searchQuery = group1.searchQuery,
+                typeFilter = group1.typeFilter,
+                timeFilter = group1.timeFilter,
+                categoryId = group1.categoryId,
+                accountId = group1.accountId,
+                paymentMethodFilter = group2.paymentMethodFilter,
+                minAmount = group2.minAmount,
+                maxAmount = group2.maxAmount,
+                customStartDate = group2.customStartDate,
+                customEndDate = group2.customEndDate
+            )
         }
+
 
         viewModelScope.launch {
             combine(
                 transactionsFlow,
                 categoryRepository.getAllCategories(),
+                accountRepository.getAllAccounts(),
                 filtersFlow
-            ) { transactions: List<Transaction>, categories: List<Category>, filters: FilterState ->
+            ) { transactions: List<Transaction>, categories: List<Category>, accounts: List<Account>, filters: FilterState ->
                 val categoryMap = categories.associateBy { it.id }
+                val accountMap = accounts.associateBy { it.id }
                 
                 val enrichedTransactions = transactions.map { transaction ->
                     val category = categoryMap[transaction.categoryId]
@@ -143,19 +208,37 @@ class TransactionsViewModel @Inject constructor(
                     }
                 }.sortedBy { it.name }
                 
+                // Get accounts present in transactions
+                val presentAccountIds = transactions.mapNotNull { it.accountId }.distinct()
+                val availableAccounts = presentAccountIds.mapNotNull { accId ->
+                    accountMap[accId]?.let { acc ->
+                        AccountFilterItem(
+                            id = acc.id,
+                            name = acc.name,
+                            type = acc.type,
+                            color = acc.color
+                        )
+                    }
+                }.sortedBy { it.name }
+                
                 // Apply filters
                 val filtered = enrichedTransactions
                     .filter { filterByType(it.transaction, filters.typeFilter) }
                     .filter { filterByCategory(it.transaction, filters.categoryId) }
+                    .filter { filterByAccount(it.transaction, filters.accountId) }
+                    .filter { filterByPaymentMethod(it.transaction, filters.paymentMethodFilter, accountMap) }
+                    .filter { filterByAmountRange(it.transaction, filters.minAmount, filters.maxAmount) }
                     .filter { filterByTime(it.transaction, filters.timeFilter, filters.customStartDate, filters.customEndDate) }
                     .filter { filterBySearch(it, filters.searchQuery) }
                 
-                Pair(filtered, availableCategories)
-            }.collect { (filtered, categories) ->
+                Triple(filtered, availableCategories, availableAccounts)
+            }.collect { (filtered, categories, accounts) ->
                 _uiState.update { 
                     it.copy(
                         transactions = filtered,
                         availableCategories = categories,
+    
+                        availableAccounts = accounts,
                         isLoading = false
                     ) 
                 }
@@ -163,11 +246,33 @@ class TransactionsViewModel @Inject constructor(
         }
     }
     
+    
+    private data class FilterGroup1(
+        val searchQuery: String,
+        val typeFilter: TypeFilter,
+        val timeFilter: TimeFilter,
+        val categoryId: String?,
+        val accountId: String?
+    )
+    
+    private data class FilterGroup2(
+        val paymentMethodFilter: PaymentMethodFilter,
+        val minAmount: Double?,
+        val maxAmount: Double?,
+        val customStartDate: Long?,
+        val customEndDate: Long?
+    )
+    
+
     private data class FilterState(
         val searchQuery: String,
         val typeFilter: TypeFilter,
         val timeFilter: TimeFilter,
         val categoryId: String?,
+        val accountId: String?,
+        val paymentMethodFilter: PaymentMethodFilter,
+        val minAmount: Double?,
+        val maxAmount: Double?,
         val customStartDate: Long?,
         val customEndDate: Long?
     )
@@ -225,6 +330,48 @@ class TransactionsViewModel @Inject constructor(
         return item.transaction.note?.contains(query, ignoreCase = true) == true ||
                item.categoryName.contains(query, ignoreCase = true)
     }
+    
+    private fun filterByAccount(transaction: Transaction, accountId: String?): Boolean {
+        if (accountId == null) return true
+        return transaction.accountId == accountId
+    }
+    
+    private fun filterByPaymentMethod(
+        transaction: Transaction, 
+        filter: PaymentMethodFilter,
+        accountMap: Map<String, Account>
+    ): Boolean {
+        if (filter == PaymentMethodFilter.ALL) return true
+        
+        val account = transaction.accountId?.let { accountMap[it] }
+        val accountType = account?.type ?: return false
+        
+        return when (filter) {
+            PaymentMethodFilter.ALL -> true
+            PaymentMethodFilter.CASH -> accountType == AccountType.CASH
+            PaymentMethodFilter.BANK -> accountType == AccountType.BANK
+            PaymentMethodFilter.UPI -> accountType == AccountType.UPI
+            PaymentMethodFilter.CREDIT_CARD -> accountType == AccountType.CREDIT_CARD
+            PaymentMethodFilter.WALLET -> accountType == AccountType.WALLET
+            PaymentMethodFilter.OTHER -> accountType == AccountType.OTHER
+        }
+    }
+    
+    private fun filterByAmountRange(
+        transaction: Transaction,
+        minAmount: Double?,
+        maxAmount: Double?
+    ): Boolean {
+        val amount = transaction.amount
+        
+        return when {
+            minAmount != null && maxAmount != null -> amount >= minAmount && amount <= maxAmount
+            minAmount != null -> amount >= minAmount
+            maxAmount != null -> amount <= maxAmount
+            else -> true
+        }
+    }
+
     
     fun updateSearchQuery(query: String) {
         searchQuery.value = query
@@ -290,6 +437,60 @@ class TransactionsViewModel @Inject constructor(
         }
         timeFilter.value = TimeFilter.ALL
     }
+    
+    fun updateAccountFilter(accountId: String?) {
+        selectedAccountId.value = accountId
+        _uiState.update { it.copy(selectedAccountId = accountId) }
+    }
+    
+    fun updatePaymentMethodFilter(filter: PaymentMethodFilter) {
+        paymentMethodFilter.value = filter
+        _uiState.update { it.copy(paymentMethodFilter = filter) }
+    }
+    
+    fun updateMinAmount(amount: Double?) {
+        minAmount.value = amount
+        _uiState.update { it.copy(minAmount = amount) }
+    }
+    
+    fun updateMaxAmount(amount: Double?) {
+        maxAmount.value = amount
+        _uiState.update { it.copy(maxAmount = amount) }
+    }
+    
+    fun clearAllFilters() {
+        searchQuery.value = ""
+        typeFilter.value = TypeFilter.ALL
+        timeFilter.value = TimeFilter.ALL
+        selectedCategoryId.value = null
+        selectedAccountId.value = null
+        paymentMethodFilter.value = PaymentMethodFilter.ALL
+        minAmount.value = null
+        maxAmount.value = null
+        customStartDate.value = null
+        customEndDate.value = null
+        
+        _uiState.update {
+            it.copy(
+                searchQuery = "",
+                typeFilter = TypeFilter.ALL,
+                timeFilter = TimeFilter.ALL,
+                selectedCategoryId = null,
+                selectedAccountId = null,
+                paymentMethodFilter = PaymentMethodFilter.ALL,
+                minAmount = null,
+                maxAmount = null,
+                customStartDate = null,
+                customEndDate = null,
+                showDatePicker = false
+            )
+        }
+    }
+
+    fun toggleFilters() {
+        _uiState.update { it.copy(showFilters = !it.showFilters) }
+    }
+
     
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {

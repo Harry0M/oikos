@@ -19,6 +19,7 @@ data class TransactionDetailUiState(
     val category: Category? = null,
     val account: Account? = null,
     val linkedAccounts: List<Account> = emptyList(),
+    val allCategories: List<Category> = emptyList(),
     val isLoading: Boolean = true,
     val isDeleted: Boolean = false,
     val error: String? = null,
@@ -30,6 +31,7 @@ class TransactionDetailViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val accountRepository: AccountRepository,
+    private val ruleDao: com.theblankstate.epmanager.data.local.dao.CategorizationRuleDao,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
@@ -63,6 +65,7 @@ class TransactionDetailViewModel @Inject constructor(
                             transaction = transaction,
                             category = category,
                             account = account,
+                            allCategories = categories,
                             isLoading = false
                         )
                     }
@@ -139,6 +142,25 @@ class TransactionDetailViewModel @Inject constructor(
                 _uiState.update { it.copy(isDeleted = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    /**
+     * Create a permanent categorization rule
+     */
+    fun createCategorizationRule(pattern: String, categoryId: String) {
+        viewModelScope.launch {
+            try {
+                ruleDao.insertRule(
+                    com.theblankstate.epmanager.data.model.CategorizationRule(
+                        pattern = pattern,
+                        categoryId = categoryId
+                    )
+                )
+                _uiState.update { it.copy(successMessage = "Rule saved: '$pattern' -> Category") }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Failed to save rule: ${e.message}") }
             }
         }
     }

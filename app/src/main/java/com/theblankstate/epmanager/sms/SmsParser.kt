@@ -317,20 +317,22 @@ class SmsParser @Inject constructor() {
         
         // Sender patterns (for credits - who sent money)
         private val senderPatterns = listOf(
-            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+(?:ref|on|via|\\.|\\(|$))", Pattern.CASE_INSENSITIVE),
+            // Period removed from char class - acts as terminator to stop at sentence boundaries
+            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})(?:\\s*(?:ref|on|via|\\.| |\\(|$))", Pattern.CASE_INSENSITIVE),
             Pattern.compile("from\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("credited\\s+by\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+|$)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("credited\\s+by\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})(?:\\s*(?:ref|on|via|\\.| |\\(|$))", Pattern.CASE_INSENSITIVE),
             // Sender before UPI ID: "from SenderName (sender@upi)"
-            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("from\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
         )
         
         // Receiver patterns (for debits - who received money)
         private val receiverPatterns = listOf(
-            Pattern.compile("to\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+(?:ref|on|via|\\.|\\(|$))", Pattern.CASE_INSENSITIVE),
+            // Period removed from char class - acts as terminator to stop at sentence boundaries
+            Pattern.compile("to\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})(?:\\s*(?:ref|on|via|\\.| |\\(|$))", Pattern.CASE_INSENSITIVE),
             Pattern.compile("to\\s+\"([^\"]+)\"", Pattern.CASE_INSENSITIVE),
-            Pattern.compile("paid\\s+to\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})(?:\\s+|$)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("paid\\s+to\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})(?:\\s*(?:ref|on|via|\\.| |\\(|$))", Pattern.CASE_INSENSITIVE),
             // Receiver before UPI ID: "to ReceiverName (receiver@upi)"
-            Pattern.compile("(?:to|paid to)\\s+([A-Za-z][A-Za-z0-9\\s&'.,-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
+            Pattern.compile("(?:to|paid to)\\s+([A-Za-z][A-Za-z0-9\\s&',-]{2,35})\\s*(?:\\(|\\s)[a-zA-Z0-9._-]+@", Pattern.CASE_INSENSITIVE)
         )
         
         // Bank sender IDs to identify transaction SMS
@@ -431,12 +433,17 @@ class SmsParser @Inject constructor() {
         }
         
         // Extract UPI ID if present (try all patterns)
+        // Only store as UPI ID if it contains @ symbol (intelligent detection)
         var upiId: String? = null
         for (pattern in upiPatterns) {
             val matcher = pattern.matcher(message)
             if (matcher.find()) {
-                upiId = matcher.group(1)
-                if (!upiId.isNullOrBlank()) break
+                val extracted = matcher.group(1)
+                // Validate that it's actually a UPI ID (must contain @)
+                if (!extracted.isNullOrBlank() && extracted.contains("@")) {
+                    upiId = extracted
+                    break
+                }
             }
         }
         
@@ -451,29 +458,39 @@ class SmsParser @Inject constructor() {
         }
         
         // Extract sender name (for credits)
+        // Skip values with @ as they are UPI IDs, not banking names
         var senderName: String? = null
         if (!isDebit) {
             for (pattern in senderPatterns) {
                 val matcher = pattern.matcher(message)
                 if (matcher.find()) {
-                    senderName = matcher.group(1)?.trim()?.take(50)
-                    if (!senderName.isNullOrBlank()) break
+                    val extracted = matcher.group(1)?.trim()?.take(50)
+                    // Only store as sender name if it doesn't contain @ (not a UPI ID)
+                    if (!extracted.isNullOrBlank() && !extracted.contains("@")) {
+                        senderName = extracted
+                        break
+                    }
                 }
             }
         }
         
         // Extract receiver name (for debits)
+        // Skip values with @ as they are UPI IDs, not banking names
         var receiverName: String? = null
         if (isDebit) {
             for (pattern in receiverPatterns) {
                 val matcher = pattern.matcher(message)
                 if (matcher.find()) {
-                    receiverName = matcher.group(1)?.trim()?.take(50)
-                    if (!receiverName.isNullOrBlank()) break
+                    val extracted = matcher.group(1)?.trim()?.take(50)
+                    // Only store as receiver name if it doesn't contain @ (not a UPI ID)
+                    if (!extracted.isNullOrBlank() && !extracted.contains("@")) {
+                        receiverName = extracted
+                        break
+                    }
                 }
             }
-            // Fallback to merchant name if no receiver found
-            if (receiverName.isNullOrBlank() && !merchantName.isNullOrBlank()) {
+            // Fallback to merchant name if no receiver found (only if merchant name is not a UPI ID)
+            if (receiverName.isNullOrBlank() && !merchantName.isNullOrBlank() && !merchantName.contains("@")) {
                 receiverName = merchantName
             }
         }

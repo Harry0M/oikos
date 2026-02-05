@@ -1,5 +1,10 @@
 package com.theblankstate.epmanager.ui.transactions
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -106,11 +112,25 @@ fun TransactionsScreen(
                     .padding(horizontal = Spacing.md)
                     .padding(top = Spacing.md)
             ) {
-                Text(
-                    text = "Transactions",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Transactions",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    IconButton(onClick = viewModel::toggleFilters) {
+                        Icon(
+                            imageVector = Icons.Filled.FilterList,
+                            contentDescription = "Toggle Filters",
+                            tint = if (uiState.showFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(Spacing.md))
                 
@@ -136,7 +156,13 @@ fun TransactionsScreen(
                 
                 Spacer(modifier = Modifier.height(Spacing.md))
                 
-                // Type Filter Chips
+                AnimatedVisibility(
+                    visible = uiState.showFilters,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Column {
+                        // Type Filter Chips
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -233,6 +259,140 @@ fun TransactionsScreen(
                 
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 
+                // Payment Method Filter Chips
+                Text(
+                    text = "Payment Method",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    PaymentMethodFilter.entries.forEach { filter ->
+                        FilterChip(
+                            selected = uiState.paymentMethodFilter == filter,
+                            onClick = { viewModel.updatePaymentMethodFilter(filter) },
+                            label = { Text(filter.label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                // Account Filter Chips
+                if (uiState.availableAccounts.isNotEmpty()) {
+                    Text(
+                        text = "Accounts",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        // "All" account chip
+                        FilterChip(
+                            selected = uiState.selectedAccountId == null,
+                            onClick = { viewModel.updateAccountFilter(null) },
+                            label = { Text("All") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        )
+                        
+                        // Account chips
+                        uiState.availableAccounts.forEach { account ->
+                            FilterChip(
+                                selected = uiState.selectedAccountId == account.id,
+                                onClick = { viewModel.updateAccountFilter(account.id) },
+                                label = { Text(account.name) },
+                                leadingIcon = {
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = Color(account.color),
+                                        modifier = Modifier.size(12.dp)
+                                    ) {}
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(account.color).copy(alpha = 0.2f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+                
+                // Amount Range Filter
+                Text(
+                    text = "Amount Range",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    // Min Amount
+                    OutlinedTextField(
+                        value = uiState.minAmount?.toString() ?: "",
+                        onValueChange = { 
+                            viewModel.updateMinAmount(it.toDoubleOrNull())
+                        },
+                        label = { Text("Min") },
+                        prefix = { Text(currencySymbol) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = InputFieldShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                    )
+                    
+                    // Max Amount
+                    OutlinedTextField(
+                        value = uiState.maxAmount?.toString() ?: "",
+                        onValueChange = { 
+                            viewModel.updateMaxAmount(it.toDoubleOrNull())
+                        },
+                        label = { Text("Max") },
+                        prefix = { Text(currencySymbol) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = InputFieldShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+
+                
                 // Category Filter Chips
                 if (uiState.availableCategories.isNotEmpty()) {
                     Text(
@@ -283,15 +443,47 @@ fun TransactionsScreen(
                     }
                     
                     Spacer(modifier = Modifier.height(Spacing.sm))
+                    }
                 }
-                
-                // Results count
-                Text(
-                    text = "${uiState.transactions.size} transaction${if (uiState.transactions.size != 1) "s" else ""}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
+                
+
+                
+                // Results count and Clear All button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val activeFiltersCount = listOf(
+                        uiState.searchQuery.isNotEmpty(),
+                        uiState.typeFilter != TypeFilter.ALL,
+                        uiState.timeFilter != TimeFilter.ALL,
+                        uiState.selectedCategoryId != null,
+                        uiState.selectedAccountId != null,
+                        uiState.paymentMethodFilter != PaymentMethodFilter.ALL,
+                        uiState.minAmount != null,
+                        uiState.maxAmount != null
+                    ).count { it }
+                    
+                    Text(
+                        text = if (activeFiltersCount > 0) {
+                            "${uiState.transactions.size} transaction${if (uiState.transactions.size != 1) "s" else ""} ($activeFiltersCount filter${if (activeFiltersCount != 1) "s" else ""} active)"
+                        } else {
+                            "${uiState.transactions.size} transaction${if (uiState.transactions.size != 1) "s" else ""}"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    if (activeFiltersCount > 0) {
+                        TextButton(onClick = { viewModel.clearAllFilters() }) {
+                            Text("Clear All")
+                        }
+                    }
+                }
+                }
+
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             

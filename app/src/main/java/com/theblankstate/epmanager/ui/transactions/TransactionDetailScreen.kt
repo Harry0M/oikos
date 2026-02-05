@@ -53,6 +53,8 @@ fun TransactionDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showLinkDialog by remember { mutableStateOf(false) }
+    var showRuleDialog by remember { mutableStateOf(false) }
+    var rulePattern by remember { mutableStateOf("") }
     
     // Navigate back when deleted
     LaunchedEffect(uiState.isDeleted) {
@@ -370,7 +372,11 @@ fun TransactionDetailScreen(
                                     DetailRow(
                                         icon = Icons.Filled.PersonAdd,
                                         label = "Received From",
-                                        value = transaction.senderName
+                                        value = transaction.senderName,
+                                        onRuleClick = {
+                                            rulePattern = transaction.senderName
+                                            showRuleDialog = true
+                                        }
                                     )
                                 }
                                 
@@ -379,7 +385,11 @@ fun TransactionDetailScreen(
                                     DetailRow(
                                         icon = Icons.Filled.Person,
                                         label = "Paid To",
-                                        value = transaction.receiverName
+                                        value = transaction.receiverName,
+                                        onRuleClick = {
+                                            rulePattern = transaction.receiverName
+                                            showRuleDialog = true
+                                        }
                                     )
                                 }
                                 
@@ -389,16 +399,25 @@ fun TransactionDetailScreen(
                                     DetailRow(
                                         icon = Icons.Filled.Store,
                                         label = "Merchant",
-                                        value = transaction.merchantName
+                                        value = transaction.merchantName,
+                                        onRuleClick = {
+                                            rulePattern = transaction.merchantName
+                                            showRuleDialog = true
+                                        }
                                     )
                                 }
                                 
                                 // UPI ID with QR Code button
-                                if (!transaction.upiId.isNullOrBlank()) {
+                                // Only show if it's a valid UPI ID (must contain @)
+                                if (!transaction.upiId.isNullOrBlank() && transaction.upiId.contains("@")) {
                                     DetailRow(
                                         icon = Icons.Filled.QrCode,
                                         label = "UPI ID",
-                                        value = transaction.upiId
+                                        value = transaction.upiId,
+                                        onRuleClick = {
+                                            rulePattern = transaction.upiId
+                                            showRuleDialog = true
+                                        }
                                     )
                                     
                                     // Show QR Code button
@@ -690,7 +709,112 @@ fun TransactionDetailScreen(
             onDismiss = { showLinkDialog = false }
         )
     }
+
+    // Categorization Rule Dialog
+    if (showRuleDialog && rulePattern.isNotBlank()) {
+        var selectedCategory by remember { mutableStateOf(uiState.category) }
+        var expanded by remember { mutableStateOf(false) }
+        
+        AlertDialog(
+            onDismissRequest = { showRuleDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.BookmarkAdd,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Create Categorization Rule") },
+            text = { 
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    Text("All transactions containing '$rulePattern' will be categorized as:")
+                    
+                    // Category Dropdown
+                    Box {
+                        OutlinedButton(
+                            onClick = { expanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (selectedCategory != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(selectedCategory!!.color))
+                                        )
+                                    }
+                                    Text(selectedCategory?.name ?: "Select Category")
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowDropDown,
+                                    contentDescription = null
+                                )
+                            }
+                        }
+                        
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            uiState.allCategories.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(12.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(cat.color))
+                                            )
+                                            Text(cat.name)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedCategory = cat
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedCategory?.let { cat ->
+                            viewModel.createCategorizationRule(rulePattern, cat.id)
+                        }
+                        showRuleDialog = false
+                    },
+                    enabled = selectedCategory != null
+                ) {
+                    Text("Create Rule")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRuleDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
+
 
 @Composable
 private fun DetailRow(
@@ -698,6 +822,7 @@ private fun DetailRow(
     label: String,
     value: String,
     showCopy: Boolean = true,
+    onRuleClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -743,6 +868,20 @@ private fun DetailRow(
                     contentDescription = "Copy $label",
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        if (onRuleClick != null) {
+            IconButton(
+                onClick = onRuleClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.BookmarkAdd,
+                    contentDescription = "Create Rule",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }

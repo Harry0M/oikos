@@ -24,7 +24,8 @@ class SmsInboxScanner @Inject constructor(
     @ApplicationContext private val context: Context,
     private val smsParser: SmsParser,
     private val accountRepository: AccountRepository,
-    private val db: ExpenseDatabase
+    private val db: ExpenseDatabase,
+    private val categorizer: com.theblankstate.epmanager.domain.TransactionCategorizer
 ) {
     
     data class ScanResult(
@@ -177,7 +178,11 @@ class SmsInboxScanner @Inject constructor(
                     return false // Not a new transaction
                 } else {
                     // Create transaction linked to recurring
-                    val categoryId = tryDetectCategory(parsed.merchantName) ?: matchedRecurring.categoryId
+                    val categoryId = categorizer.categorize(
+                        merchantName = parsed.merchantName,
+                        upiId = parsed.upiId,
+                        sender = sender
+                    ) ?: matchedRecurring.categoryId
                     
                     val transaction = Transaction(
                         amount = parsed.amount,
@@ -212,7 +217,11 @@ class SmsInboxScanner @Inject constructor(
         // ========== END SMART DUPLICATE DETECTION ==========
         
         // No recurring match - create normal transaction
-        val categoryId = tryDetectCategory(parsed.merchantName)
+        val categoryId = categorizer.categorize(
+            merchantName = parsed.merchantName,
+            upiId = parsed.upiId,
+            sender = sender
+        ) ?: "bills"
         
         val transaction = Transaction(
             amount = parsed.amount,
@@ -286,28 +295,6 @@ class SmsInboxScanner @Inject constructor(
         return if (bestScore >= 50) bestAccount?.id else null
     }
     
-    private suspend fun tryDetectCategory(merchantName: String?): String {
-        if (merchantName.isNullOrBlank()) return "bills"
-        val lowerMerchant = merchantName.lowercase()
-        
-        return when {
-            lowerMerchant.contains("swiggy") || lowerMerchant.contains("zomato") || 
-            lowerMerchant.contains("restaurant") || lowerMerchant.contains("cafe") -> "food"
-            
-            lowerMerchant.contains("amazon") || lowerMerchant.contains("flipkart") || 
-            lowerMerchant.contains("myntra") -> "shopping"
-            
-            lowerMerchant.contains("uber") || lowerMerchant.contains("ola") || 
-            lowerMerchant.contains("rapido") || lowerMerchant.contains("petrol") -> "transportation"
-            
-            lowerMerchant.contains("electricity") || lowerMerchant.contains("water") || 
-            lowerMerchant.contains("gas") || lowerMerchant.contains("bill") -> "bills"
-            
-            lowerMerchant.contains("netflix") || lowerMerchant.contains("hotstar") -> "entertainment"
-            
-            else -> "bills"
-        }
-    }
     
     private fun buildNote(
         parsed: SmsParser.ParsedTransaction, 
