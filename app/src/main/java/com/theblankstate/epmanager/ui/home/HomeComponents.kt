@@ -72,7 +72,7 @@ fun AccountCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(210.dp)
-            .clickable(onClick = onClick),
+            .clickable { onClick() },
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,

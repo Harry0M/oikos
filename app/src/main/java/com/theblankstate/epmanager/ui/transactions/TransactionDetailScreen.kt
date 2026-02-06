@@ -5,16 +5,16 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -26,9 +26,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.TransactionType
@@ -50,20 +50,25 @@ fun TransactionDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val currencySymbol by currencyViewModel.currencySymbol.collectAsState(initial = "₹")
     val context = LocalContext.current
+    
+    // Bottom Sheet & Dialog States
+    var showBottomSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+    
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showLinkDialog by remember { mutableStateOf(false) }
-    var showRuleDialog by remember { mutableStateOf(false) }
     var rulePattern by remember { mutableStateOf("") }
     
-    // Navigate back when deleted
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    // Effects
     LaunchedEffect(uiState.isDeleted) {
         if (uiState.isDeleted) {
             onNavigateBack()
         }
     }
     
-    // Show success/error toasts
     LaunchedEffect(uiState.successMessage, uiState.error) {
         uiState.successMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -74,434 +79,223 @@ fun TransactionDetailScreen(
             viewModel.clearMessages()
         }
     }
-    
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = { Text("Transaction Details") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
                 },
                 actions = {
                     if (uiState.transaction != null) {
-                        // Edit button
                         IconButton(onClick = onNavigateToEdit) {
-                            Icon(
-                                imageVector = Icons.Filled.Edit,
-                                contentDescription = "Edit",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Filled.Edit, "Edit", tint = MaterialTheme.colorScheme.primary)
                         }
-                        // Delete button
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.Delete,
-                                contentDescription = "Delete",
-                                tint = MaterialTheme.colorScheme.error
-                            )
+                            Icon(Icons.Filled.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                         }
                     }
-                }
+                },
+                scrollBehavior = scrollBehavior
             )
         }
     ) { paddingValues ->
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (uiState.isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (uiState.error != null && uiState.transaction == null) {
+                 Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    CircularProgressIndicator()
+                    Icon(Icons.Filled.Error, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(uiState.error ?: "Error", color = MaterialTheme.colorScheme.error)
                 }
-            }
-            
-            uiState.error != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        Text(
-                            text = uiState.error ?: "Error",
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
-            
-            uiState.transaction != null -> {
+            } else if (uiState.transaction != null) {
                 val transaction = uiState.transaction!!
                 val category = uiState.category
                 val account = uiState.account
                 
-                // Smart account name: show bank name if account name is generic
-                val displayAccountName = when {
-                    account == null -> null
-                    account.name.equals("Bank Account", ignoreCase = true) && !account.bankCode.isNullOrBlank() -> {
-                        account.bankCode // Show bank code like "HDFC" instead of "Bank Account"
-                    }
-                    account.isLinked && !account.bankCode.isNullOrBlank() -> {
-                        "${account.name} (${account.bankCode})"
-                    }
-                    else -> account.name
-                }
-                
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .verticalScroll(rememberScrollState())
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
-                    // Amount Header
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.md),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (transaction.type == TransactionType.EXPENSE)
-                                Error.copy(alpha = 0.1f)
-                            else
-                                Success.copy(alpha = 0.1f)
-                        )
-                    ) {
+                    // Header (Amount & Category Button)
+                    item {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(Spacing.xl),
+                                .padding(horizontal = 24.dp, vertical = 24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Type Badge
-                            AssistChip(
-                                onClick = {},
-                                label = { 
-                                    Text(
-                                        if (transaction.type == TransactionType.EXPENSE) "Expense" else "Income"
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = if (transaction.type == TransactionType.EXPENSE)
-                                            Icons.Filled.ArrowDownward
-                                        else
-                                            Icons.Filled.ArrowUpward,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (transaction.type == TransactionType.EXPENSE)
-                                        Error.copy(alpha = 0.2f)
-                                    else
-                                        Success.copy(alpha = 0.2f),
-                                    labelColor = if (transaction.type == TransactionType.EXPENSE)
-                                        Error
-                                    else
-                                        Success
-                                )
-                            )
-                            
-                            Spacer(modifier = Modifier.height(Spacing.md))
-                            
-                            // Amount
+                            val amountColor = if (transaction.type == TransactionType.EXPENSE) MaterialTheme.colorScheme.error else Color(0xFF16A34A)
                             Text(
                                 text = "${if (transaction.type == TransactionType.EXPENSE) "-" else "+"}${formatAmount(transaction.amount, currencySymbol)}",
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (transaction.type == TransactionType.EXPENSE) Error else Success
+                                style = MaterialTheme.typography.displayLarge,
+                                fontWeight = FontWeight.Black,
+                                color = amountColor
                             )
                             
-                            // Category
-                            if (category != null) {
-                                Spacer(modifier = Modifier.height(Spacing.sm))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(category.color))
-                                    )
-                                    Text(
-                                        text = category.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Details Section
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.md)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(Spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                        ) {
-                            Text(
-                                text = "Details",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Spacer(Modifier.height(16.dp))
                             
-                            HorizontalDivider()
+                            // Category Badge (Better visibility as requested)
+                            val categoryName = category?.name ?: "Uncategorized"
+                            val categoryColor = category?.color?.let { Color(it) } ?: MaterialTheme.colorScheme.outline
                             
-                            // Date & Time
-                            DetailRow(
-                                icon = Icons.Filled.CalendarToday,
-                                label = "Date",
-                                value = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault())
-                                    .format(Date(transaction.date))
-                            )
-                            
-                            DetailRow(
-                                icon = Icons.Filled.AccessTime,
-                                label = "Time",
-                                value = SimpleDateFormat("hh:mm a", Locale.getDefault())
-                                    .format(Date(transaction.date))
-                            )
-                            
-                            // Account with smart naming
-                            if (displayAccountName != null) {
-                                DetailRow(
-                                    icon = Icons.Filled.AccountBalance,
-                                    label = "Account",
-                                    value = displayAccountName
-                                )
-                            }
-                            
-                            // Note
-                            if (!transaction.note.isNullOrBlank()) {
-                                DetailRow(
-                                    icon = Icons.Filled.Notes,
-                                    label = "Note",
-                                    value = transaction.note
-                                )
-                            }
-                            
-                            // Recurring indicator
-                            if (transaction.isRecurring) {
-                                DetailRow(
-                                    icon = Icons.Filled.Repeat,
-                                    label = "Recurring",
-                                    value = "Yes"
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    
-                    // SMS Details Section (only if SMS metadata present)
-                    if (transaction.smsSender != null || transaction.merchantName != null || 
-                        transaction.refNumber != null || transaction.senderName != null || 
-                        transaction.receiverName != null) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.md)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(Spacing.md),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                            FilledTonalButton(
+                                onClick = { 
+                                    rulePattern = transaction.merchantName ?: transaction.receiverName ?: transaction.senderName ?: ""
+                                    showBottomSheet = true 
+                                },
+                                shape = CircleShape,
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = categoryColor.copy(alpha = 0.1f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                             ) {
-                                Text(
-                                    text = "Transaction Details",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(categoryColor)
                                 )
-                                
-                                HorizontalDivider()
-                                
-                                // SMS Sender (Bank) with optional Link button
+                                Spacer(Modifier.width(8.dp))
+                                Text(categoryName, style = MaterialTheme.typography.labelLarge)
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Filled.ChevronRight, null, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    
+                    // General Details
+                    item {
+                        DetailSection(title = "General") {
+                             DetailListItem(
+                                 icon = Icons.Filled.CalendarToday,
+                                 headline = "Date",
+                                 supporting = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()).format(Date(transaction.date))
+                             )
+                             DetailListItem(
+                                 icon = Icons.Filled.AccessTime,
+                                 headline = "Time",
+                                 supporting = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(transaction.date))
+                             )
+                             val displayAccountName = when {
+                                account == null -> null
+                                account.name.equals("Bank Account", ignoreCase = true) && !account.bankCode.isNullOrBlank() -> account.bankCode
+                                account.isLinked && !account.bankCode.isNullOrBlank() -> "${account.name} (${account.bankCode})"
+                                else -> account.name
+                             }
+                             if (displayAccountName != null) {
+                                 DetailListItem(
+                                     icon = Icons.Filled.AccountBalance,
+                                     headline = "Account",
+                                     supporting = displayAccountName
+                                 )
+                             }
+                             if (!transaction.note.isNullOrBlank()) {
+                                 DetailListItem(
+                                     icon = Icons.Filled.Notes,
+                                     headline = "Note",
+                                     supporting = transaction.note,
+                                     enableCopy = true
+                                 )
+                             }
+                        }
+                    }
+                    
+                    // Transaction Info
+                    if (transaction.smsSender != null || transaction.merchantName != null || 
+                        transaction.refNumber != null || transaction.senderName != null || transaction.receiverName != null) {
+                        item {
+                            DetailSection(title = "Transaction Info") {
                                 if (!transaction.smsSender.isNullOrBlank()) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        DetailRow(
-                                            icon = Icons.Filled.Sms,
-                                            label = "From Bank",
-                                            value = transaction.smsSender,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        
-                                        // Show Link button if transaction has no linked account
-                                        if (transaction.accountId == null && uiState.linkedAccounts.isNotEmpty()) {
-                                            TextButton(
-                                                onClick = { showLinkDialog = true }
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Link,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(Modifier.width(4.dp))
-                                                Text("Link", style = MaterialTheme.typography.labelSmall)
+                                    DetailListItem(
+                                        icon = Icons.Filled.Sms,
+                                        headline = "Bank / Sender",
+                                        supporting = transaction.smsSender,
+                                        trailingContent = {
+                                            if (transaction.accountId == null && uiState.linkedAccounts.isNotEmpty()) {
+                                                FilledTonalButton(onClick = { showLinkDialog = true }) {
+                                                    Icon(Icons.Filled.Link, null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text("Link")
+                                                }
                                             }
                                         }
-                                    }
-                                }
-                                
-                                // Sender (for credits)
-                                if (!transaction.senderName.isNullOrBlank()) {
-                                    DetailRow(
-                                        icon = Icons.Filled.PersonAdd,
-                                        label = "Received From",
-                                        value = transaction.senderName,
-                                        onRuleClick = {
-                                            rulePattern = transaction.senderName
-                                            showRuleDialog = true
-                                        }
                                     )
                                 }
                                 
-                                // Receiver (for debits)
-                                if (!transaction.receiverName.isNullOrBlank()) {
-                                    DetailRow(
-                                        icon = Icons.Filled.Person,
-                                        label = "Paid To",
-                                        value = transaction.receiverName,
-                                        onRuleClick = {
-                                            rulePattern = transaction.receiverName
-                                            showRuleDialog = true
-                                        }
-                                    )
-                                }
+                                val entities = listOfNotNull(
+                                    if (!transaction.senderName.isNullOrBlank()) "Received From" to transaction.senderName else null,
+                                    if (!transaction.receiverName.isNullOrBlank()) "Paid To" to transaction.receiverName else null,
+                                    if (!transaction.merchantName.isNullOrBlank() && transaction.merchantName != transaction.receiverName) "Merchant" to transaction.merchantName else null
+                                )
                                 
-                                // Merchant
-                                if (!transaction.merchantName.isNullOrBlank() && 
-                                    transaction.merchantName != transaction.receiverName) {
-                                    DetailRow(
+                                entities.forEach { (label, name) ->
+                                    DetailListItem(
                                         icon = Icons.Filled.Store,
-                                        label = "Merchant",
-                                        value = transaction.merchantName,
-                                        onRuleClick = {
-                                            rulePattern = transaction.merchantName
-                                            showRuleDialog = true
+                                        headline = label,
+                                        supporting = name,
+                                        enableCopy = true,
+                                        trailingContent = {
+                                            FilledTonalButton(onClick = {
+                                                rulePattern = name!!
+                                                showBottomSheet = true
+                                            }) {
+                                                Text(category?.name ?: "Category", style = MaterialTheme.typography.labelSmall)
+                                            }
                                         }
                                     )
                                 }
                                 
-                                // UPI ID with QR Code button
-                                // Only show if it's a valid UPI ID (must contain @)
                                 if (!transaction.upiId.isNullOrBlank() && transaction.upiId.contains("@")) {
-                                    DetailRow(
+                                    DetailListItem(
                                         icon = Icons.Filled.QrCode,
-                                        label = "UPI ID",
-                                        value = transaction.upiId,
-                                        onRuleClick = {
-                                            rulePattern = transaction.upiId
-                                            showRuleDialog = true
+                                        headline = "UPI ID",
+                                        supporting = transaction.upiId,
+                                        enableCopy = true,
+                                        trailingContent = {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                IconButton(onClick = { showQrDialog = true }) {
+                                                    Icon(Icons.Filled.QrCode2, "QR", tint = MaterialTheme.colorScheme.primary)
+                                                }
+                                                FilledTonalButton(onClick = {
+                                                    rulePattern = transaction.upiId!!
+                                                    showBottomSheet = true
+                                                }) {
+                                                    Text(category?.name ?: "Category", style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
                                         }
                                     )
-                                    
-                                    // Show QR Code button
-                                    OutlinedButton(
-                                        onClick = { showQrDialog = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.QrCode2,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.xs))
-                                        Text("View QR Code")
-                                    }
                                 }
                                 
-                                // Reference Number
                                 if (!transaction.refNumber.isNullOrBlank()) {
-                                    DetailRow(
+                                    DetailListItem(
                                         icon = Icons.Filled.Tag,
-                                        label = "Reference No.",
-                                        value = transaction.refNumber
+                                        headline = "Reference No.",
+                                        supporting = transaction.refNumber,
+                                        enableCopy = true
                                     )
                                 }
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(Spacing.md))
                     }
                     
-                    // Original SMS Section
-                    if (!transaction.originalSms.isNullOrBlank()) {
-                        OriginalSmsCard(
-                            sms = transaction.originalSms,
-                            smsSender = transaction.smsSender
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                    }
-                    
-                    // Location Section
+                    // Location
                     if (transaction.latitude != null && transaction.longitude != null) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = Spacing.md)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(Spacing.md),
-                                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-                            ) {
-                                Text(
-                                    text = "Location",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                
-                                HorizontalDivider()
-                                
-                                // Location Name
-                                if (!transaction.locationName.isNullOrBlank()) {
-                                    DetailRow(
-                                        icon = Icons.Filled.Place,
-                                        label = "Place",
-                                        value = transaction.locationName
-                                    )
-                                }
-                                
-                                // Coordinates
-                                DetailRow(
-                                    icon = Icons.Filled.MyLocation,
-                                    label = "Coordinates",
-                                    value = "${String.format("%.6f", transaction.latitude)}, ${String.format("%.6f", transaction.longitude)}"
-                                )
-                                
-                                // Static Map Preview using OpenStreetMap
-                                // Using free OSM static map service (no API key needed)
+                         item {
+                             DetailSection(title = "Location") {
+                                val lat = transaction.latitude!!
+                                val lon = transaction.longitude!!
                                 val zoom = 15
-                                val lat = transaction.latitude
-                                val lon = transaction.longitude
-                                // Using a free static map service that works without API key
-                                val mapUrl = "https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.003},${lat - 0.002},${lon + 0.003},${lat + 0.002}&layer=mapnik&marker=${lat},${lon}"
-                                
-                                // Alternative: Use direct tile image from OSM
                                 val tileX = ((lon + 180.0) / 360.0 * (1 shl zoom)).toInt()
                                 val latRad = Math.toRadians(lat)
                                 val tileY = ((1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / Math.PI) / 2.0 * (1 shl zoom)).toInt()
@@ -510,8 +304,8 @@ fun TransactionDetailScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(150.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .height(180.dp)
+                                        .clip(MaterialTheme.shapes.medium)
                                         .background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -521,175 +315,110 @@ fun TransactionDetailScreen(
                                             .crossfade(true)
                                             .addHeader("User-Agent", "EpManager/1.0")
                                             .build(),
-                                        contentDescription = "Location Map",
+                                        contentDescription = "Map",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        loading = {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                        },
-                                        error = {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Map,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(32.dp)
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = "Tap to view map",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
+                                        loading = { CircularProgressIndicator(modifier = Modifier.size(24.dp)) },
+                                        error = { Icon(Icons.Filled.Map, null) }
                                     )
+                                    Icon(Icons.Filled.LocationOn, null, tint = Color.Red, modifier = Modifier.size(32.dp))
                                     
-                                    // Location marker overlay
-                                    Icon(
-                                        imageVector = Icons.Filled.LocationOn,
-                                        contentDescription = null,
-                                        tint = Color.Red,
-                                        modifier = Modifier.size(32.dp)
+                                    FilledTonalButton(
+                                        onClick = {
+                                            val gmmIntentUri = Uri.parse("geo:0,0?q=${lat},${lon}(Transaction)")
+                                            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+                                            try {
+                                                context.startActivity(mapIntent)
+                                            } catch (e: Exception) {
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${lat},${lon}")))
+                                            }
+                                        },
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Map, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Maps")
+                                    }
+                                }
+                                
+                                if (!transaction.locationName.isNullOrBlank()) {
+                                    DetailListItem(
+                                        icon = Icons.Filled.Place,
+                                        headline = "Place",
+                                        supporting = transaction.locationName
                                     )
                                 }
                                 
-                                // Open in Maps button
-                                OutlinedButton(
-                                    onClick = {
-                                        try {
-                                            // Try Google Maps first
-                                            val gmmIntentUri = Uri.parse("geo:0,0?q=${transaction.latitude},${transaction.longitude}(Transaction Location)")
-                                            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
-                                            context.startActivity(mapIntent)
-                                        } catch (e: Exception) {
-                                            // Fallback to browser with Google Maps URL
-                                            val browserUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${transaction.latitude},${transaction.longitude}")
-                                            val browserIntent = Intent(Intent.ACTION_VIEW, browserUri)
-                                            context.startActivity(browserIntent)
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Map,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Text("Open in Maps")
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                    }
-                    
-                    // Metadata Section
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.md),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(Spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
-                            Text(
-                                text = "Record Info",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            
-                            Text(
-                                text = "Created: ${SimpleDateFormat("MMM d, yyyy 'at' hh:mm a", Locale.getDefault()).format(Date(transaction.createdAt))}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            
-                            if (transaction.updatedAt != transaction.createdAt) {
-                                Text(
-                                    text = "Updated: ${SimpleDateFormat("MMM d, yyyy 'at' hh:mm a", Locale.getDefault()).format(Date(transaction.updatedAt))}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                // Coordinates (Visible and Copyable as requested)
+                                DetailListItem(
+                                    icon = Icons.Filled.Grid4x4,
+                                    headline = "Coordinates",
+                                    supporting = String.format("%.6f, %.6f", lat, lon),
+                                    enableCopy = true
                                 )
-                            }
-                            
-                            Text(
-                                text = "ID: ${transaction.id.take(8)}...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                            
-                            // Sync status
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                            ) {
-                                Icon(
-                                    imageVector = if (transaction.isSynced) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = if (transaction.isSynced) Success else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = if (transaction.isSynced) "Synced to cloud" else "Not synced",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(Spacing.xxl))
+                             }
+                         }
+                     }
+                     
+                     // Metadata Footer
+                     item {
+                         Column(
+                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+                             horizontalAlignment = Alignment.CenterHorizontally
+                         ) {
+                             Text(
+                                 "ID: ${transaction.id}",
+                                 style = MaterialTheme.typography.labelSmall,
+                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.4f)
+                             )
+                             Text(
+                                 "Created: ${SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()).format(Date(transaction.createdAt))}",
+                                 style = MaterialTheme.typography.labelSmall,
+                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.4f)
+                             )
+                         }
+                     }
                 }
             }
         }
     }
     
-    // Delete Confirmation Dialog
+    // Dialogs & Sheets (Inside Screen scope)
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false },
+            sheetState = sheetState
+        ) {
+            CategorizationBottomSheetContent(
+                pattern = rulePattern,
+                categories = uiState.allCategories,
+                onCategorySelected = { cat ->
+                    viewModel.createCategorizationRule(rulePattern, cat.id)
+                    showBottomSheet = false
+                }
+            )
+        }
+    }
+
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
+        ConfirmDeleteDialog(
+            onConfirm = { 
+                viewModel.deleteTransaction()
+                showDeleteDialog = false
             },
-            title = { Text("Delete Transaction") },
-            text = { 
-                Text("Are you sure you want to delete this transaction? This will also reverse the account balance change.") 
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteTransaction()
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteDialog = false }
         )
     }
     
-    // UPI QR Code Dialog
+    if (showLinkDialog && uiState.transaction?.smsSender != null) {
+        LinkToAccountDialog(
+            senderId = uiState.transaction!!.smsSender!!,
+            accounts = uiState.linkedAccounts,
+            onAccountSelected = { id -> viewModel.linkSenderToAccount(uiState.transaction!!.smsSender!!, id) },
+            onDismiss = { showLinkDialog = false }
+        )
+    }
+    
     if (showQrDialog && uiState.transaction?.upiId != null) {
         UpiQrCodeDialog(
             upiId = uiState.transaction!!.upiId!!,
@@ -697,571 +426,229 @@ fun TransactionDetailScreen(
             onDismiss = { showQrDialog = false }
         )
     }
-    
-    // Link to Account Dialog
-    if (showLinkDialog && uiState.transaction?.smsSender != null) {
-        LinkToAccountDialog(
-            senderId = uiState.transaction!!.smsSender!!,
-            accounts = uiState.linkedAccounts,
-            onAccountSelected = { accountId ->
-                viewModel.linkSenderToAccount(uiState.transaction!!.smsSender!!, accountId)
-            },
-            onDismiss = { showLinkDialog = false }
-        )
-    }
+}
 
-    // Categorization Rule Dialog
-    if (showRuleDialog && rulePattern.isNotBlank()) {
-        var selectedCategory by remember { mutableStateOf(uiState.category) }
-        var expanded by remember { mutableStateOf(false) }
-        
-        AlertDialog(
-            onDismissRequest = { showRuleDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.BookmarkAdd,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = { Text("Create Categorization Rule") },
-            text = { 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    Text("All transactions containing '$rulePattern' will be categorized as:")
-                    
-                    // Category Dropdown
-                    Box {
-                        OutlinedButton(
-                            onClick = { expanded = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (selectedCategory != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(selectedCategory!!.color))
-                                        )
-                                    }
-                                    Text(selectedCategory?.name ?: "Select Category")
-                                }
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowDropDown,
-                                    contentDescription = null
-                                )
-                            }
-                        }
-                        
-                        DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            uiState.allCategories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(12.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(cat.color))
-                                            )
-                                            Text(cat.name)
-                                        }
-                                    },
-                                    onClick = {
-                                        selectedCategory = cat
-                                        expanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        selectedCategory?.let { cat ->
-                            viewModel.createCategorizationRule(rulePattern, cat.id)
-                        }
-                        showRuleDialog = false
-                    },
-                    enabled = selectedCategory != null
-                ) {
-                    Text("Create Rule")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRuleDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+@Composable
+fun DetailSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.padding(vertical = 12.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
         )
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            content()
+        }
     }
 }
 
-
 @Composable
-private fun DetailRow(
+fun DetailListItem(
     icon: ImageVector,
-    label: String,
-    value: String,
-    showCopy: Boolean = true,
-    onRuleClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    headline: String,
+    supporting: String?,
+    enableCopy: Boolean = false,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
+    if (supporting == null) return
     val context = LocalContext.current
     
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-        
-        if (showCopy) {
-            IconButton(
-                onClick = { copyToClipboard(context, label, value) },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ContentCopy,
-                    contentDescription = "Copy $label",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        if (onRuleClick != null) {
-            IconButton(
-                onClick = onRuleClick,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.BookmarkAdd,
-                    contentDescription = "Create Rule",
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    }
-}
-
-/**
- * Copy text to clipboard and show toast
- */
-private fun copyToClipboard(context: Context, label: String, value: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText(label, value)
-    clipboard.setPrimaryClip(clip)
-    Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
-}
-
-/**
- * Generate QR code bitmap for UPI payment
- */
-private fun generateUpiQrCode(upiId: String, amount: Double? = null): Bitmap? {
-    return try {
-        val upiUri = buildString {
-            append("upi://pay?pa=$upiId")
-            append("&pn=Payment")
-            if (amount != null && amount > 0) {
-                append("&am=$amount")
-            }
-            append("&cu=INR")
-        }
-        
-        val writer = QRCodeWriter()
-        val bitMatrix = writer.encode(upiUri, BarcodeFormat.QR_CODE, 512, 512)
-        val width = bitMatrix.width
-        val height = bitMatrix.height
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-        
-        for (x in 0 until width) {
-            for (y in 0 until height) {                bitmap.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-            }
-        }
-        bitmap
-    } catch (e: Exception) {
-        null
-    }
-}
-
-/**
- * Original SMS Card with expandable view and copy functionality
- */
-@Composable
-private fun OriginalSmsCard(
-    sms: String,
-    smsSender: String?
-) {
-    val context = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.md),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Sms,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Original SMS",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-                
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    IconButton(
-                        onClick = { copyToClipboard(context, "SMS", sms) },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "Copy SMS",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    }
-                    Icon(
-                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-            
-            if (!smsSender.isNullOrBlank()) {
-                Text(
-                    text = "From: $smsSender",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
-                )
-            }
-            
-            if (expanded) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
-                Text(
-                    text = sms,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
-        }
-    }
-}
-
-/**
- * UPI Details Dialog - Shows QR code, UPI ID with options to copy and pay
- */
-@Composable
-private fun UpiQrCodeDialog(
-    upiId: String,
-    amount: Double,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val qrBitmap = remember(upiId, amount) { generateUpiQrCode(upiId, amount) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { 
+    ListItem(
+        headlineContent = { Text(headline, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        supportingContent = { 
             Text(
-                text = "UPI Payment QR",
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                // QR Code Image
-                if (qrBitmap != null) {
-                    Card(
-                        modifier = Modifier.size(200.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
-                    ) {
-                        Image(
-                            bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "UPI QR Code",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
-                        )
-                    }
-                } else {
-                    // Fallback if QR generation fails
-                    Box(
-                        modifier = Modifier
-                            .size(200.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Filled.QrCode,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Text("QR generation failed")
-                        }
-                    }
-                }
-                
-                // UPI ID display
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.md),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "UPI ID",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            text = upiId,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-                
-                // Copy button
-                OutlinedButton(
-                    onClick = { copyToClipboard(context, "UPI ID", upiId) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ContentCopy,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Copy UPI ID")
-                }
-                
-                // Pay with UPI button
-                Button(
-                    onClick = {
-                        try {
-                            val upiUri = Uri.parse(buildString {
-                                append("upi://pay?pa=$upiId")
-                                append("&pn=Payment")
-                                if (amount > 0) {
-                                    append("&am=$amount")
-                                }
-                                append("&cu=INR")
-                            })
-                            val intent = Intent(Intent.ACTION_VIEW, upiUri)
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "No UPI app found", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Payment,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Pay with UPI App")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
-        }
-    )
-}
-
-/**
- * Dialog to select a bank account to link the SMS sender to
- */
-@Composable
-private fun LinkToAccountDialog(
-    senderId: String,
-    accounts: List<com.theblankstate.epmanager.data.model.Account>,
-    onAccountSelected: (accountId: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { 
-            Text(
-                text = "Link Sender to Account",
-                style = MaterialTheme.typography.titleLarge
+                supporting, 
+                style = MaterialTheme.typography.bodyLarge, 
+                color = MaterialTheme.colorScheme.onSurface
             ) 
         },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                Text(
-                    text = "Link \"$senderId\" to:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                
-                if (accounts.isEmpty()) {
-                    Text(
-                        text = "No linked accounts found. Create a linked bank account first.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                } else {
-                    accounts.forEach { account ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { 
-                                    onAccountSelected(account.id)
-                                    onDismiss()
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(Spacing.md),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(account.color)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.AccountBalance,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = account.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    if (!account.linkedSenderIds.isNullOrBlank()) {
-                                        Text(
-                                            text = "Senders: ${account.linkedSenderIds}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                                
-                                Icon(
-                                    imageVector = Icons.Filled.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+        leadingContent = {
+            Icon(
+                icon, 
+                null, 
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            )
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (trailingContent != null) {
+                    trailingContent()
+                }
+                if (enableCopy) {
+                    IconButton(onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText(headline, supporting)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "$headline copied", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Filled.ContentCopy, "Copy", modifier = Modifier.size(18.dp))
                     }
                 }
             }
         },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
+}
+
+@Composable
+fun ConfirmDeleteDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Transaction?") },
+        text = { Text("This action cannot be undone. Balance will be reverted.") },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        icon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) }
+    )
+}
+
+@Composable
+fun LinkToAccountDialog(
+    senderId: String,
+    accounts: List<com.theblankstate.epmanager.data.model.Account>,
+    onAccountSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link Sender: $senderId") },
+        text = {
+            LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                items(accounts.size) { i ->
+                    val acc = accounts[i]
+                    ListItem(
+                        headlineContent = { Text(acc.name) },
+                        leadingContent = { Icon(Icons.Filled.AccountBalance, null) },
+                        modifier = Modifier.clickable { 
+                            onAccountSelected(acc.id)
+                            onDismiss() 
+                        }
+                    )
+                }
             }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun UpiQrCodeDialog(upiId: String, amount: Double, onDismiss: () -> Unit) {
+    val upiString = "upi://pay?pa=$upiId&am=$amount"
+    val context = LocalContext.current
+    val bitmap = remember(upiString) {
+        try {
+            val writer = QRCodeWriter()
+            val bitMatrix = writer.encode(upiString, BarcodeFormat.QR_CODE, 512, 512)
+            val w = bitMatrix.width
+            val h = bitMatrix.height
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
+            for (x in 0 until w) {
+                for (y in 0 until h) {
+                    bmp.setPixel(x, y, if (bitMatrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE)
+                }
+            }
+            bmp
+        } catch (e: Exception) { null }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("UPI QR Code") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "QR Code",
+                        modifier = Modifier.size(240.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(upiId, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text("Requested: ₹$amount", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        },
+        confirmButton = { 
+            // Open in UPI App option as requested
+            Button(onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(upiString))
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "No UPI app found", Toast.LENGTH_SHORT).show()
+                }
+            }) {
+                Icon(Icons.Filled.Payment, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Pay with UPI App")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategorizationBottomSheetContent(
+    pattern: String,
+    categories: List<com.theblankstate.epmanager.data.model.Category>,
+    onCategorySelected: (com.theblankstate.epmanager.data.model.Category) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp)
+            .padding(horizontal = 24.dp)
+    ) {
+        Text(
+            "Categorize Activity",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "Link transactions related to '$pattern' to a category.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(24.dp))
+        
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.heightIn(max = 400.dp)
+        ) {
+            items(categories.size) { i ->
+                val cat = categories[i]
+                Surface(
+                    onClick = { onCategorySelected(cat) },
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(cat.color))
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(cat.name, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+        }
+    }
 }
