@@ -1,5 +1,6 @@
 package com.theblankstate.epmanager.ui.sms
 
+import android.app.Activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,14 +76,17 @@ fun SmsSettingsScreen(
             contentPadding = PaddingValues(Spacing.md),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
+
             // Permission Status
-            item {
-                PermissionStatusCard(
-                    hasPermission = hasPermission,
-                    onRequestPermission = {
-                        // This would need to be handled by the activity
-                    }
-                )
+            if (!hasPermission) {
+                item {
+                    PermissionStatusCard(
+                        hasPermission = hasPermission,
+                        onRequestPermission = {
+                            (context as? Activity)?.let { SmsPermissionManager.requestPermissions(it) }
+                        }
+                    )
+                }
             }
             
             // Discover Banks Card - Primary action for new users
@@ -95,13 +99,61 @@ fun SmsSettingsScreen(
                     )
                 }
             }
-            
-            // Scan SMS Card
+
+            // Custom Banks Section
             item {
-                ScanSmsCard(
-                    onClick = { showScanDialog = true }
+                Text(
+                    text = "Custom Bank Templates",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = Spacing.md)
                 )
             }
+            
+            if (uiState.customTemplates.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.Transparent
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.lg),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            Text(
+                                text = "No custom banks added",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Add your bank if it's not auto-detected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(uiState.customTemplates) { template ->
+                    CustomBankCard(
+                        template = template,
+                        onClick = { selectedTemplate = template },
+                        onDelete = { viewModel.deleteTemplate(template) }
+                    )
+                }
+            }
+            
             
             // Your Banks Section - shows discovered banks after scan
             val discoveryResult = uiState.discoveryResult
@@ -213,58 +265,6 @@ fun SmsSettingsScreen(
                 }
             }
             
-            // Custom Banks Section
-            item {
-                Text(
-                    text = "Custom Bank Templates",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = Spacing.md)
-                )
-            }
-            
-            if (uiState.customTemplates.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.lg),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalance,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.sm))
-                            Text(
-                                text = "No custom banks added",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "Add your bank if it's not auto-detected",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(uiState.customTemplates) { template ->
-                    CustomBankCard(
-                        template = template,
-                        onClick = { selectedTemplate = template },
-                        onDelete = { viewModel.deleteTemplate(template) }
-                    )
-                }
-            }
             
             // Note: Built-in banks are now hidden
             // Banks are auto-discovered from user's SMS and shown in the results sheet
@@ -469,13 +469,13 @@ fun PermissionStatusCard(
     onRequestPermission: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onRequestPermission),
         colors = CardDefaults.cardColors(
-            containerColor = if (hasPermission) 
-                MaterialTheme.colorScheme.primaryContainer 
-            else 
-                MaterialTheme.colorScheme.errorContainer
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -508,11 +508,6 @@ fun PermissionStatusCard(
                 )
             }
             
-            if (!hasPermission) {
-                TextButton(onClick = onRequestPermission) {
-                    Text("Enable")
-                }
-            }
         }
     }
 }
@@ -573,7 +568,11 @@ fun CustomBankCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -688,11 +687,9 @@ fun DiscoverBanksCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (!hasDiscoveryResult)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -778,11 +775,9 @@ fun YourBankCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (bank.isKnownBank)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -922,11 +917,9 @@ fun DiscoveredBankCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (bank.isKnownBank)
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -1053,8 +1046,9 @@ fun BankDiscoveryResultsSheet(
                                     selectedSenderForExisting = null
                                 },
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                                containerColor = androidx.compose.ui.graphics.Color.Transparent
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -1198,8 +1192,9 @@ fun BankDiscoveryResultsSheet(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                                containerColor = androidx.compose.ui.graphics.Color.Transparent
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -1255,11 +1250,9 @@ fun DiscoveredBankResultItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (bank.isKnownBank)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.sm)) {
             Row(
@@ -1400,8 +1393,9 @@ fun UnknownSenderMainScreenItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1579,8 +1573,9 @@ fun UnknownSenderResultItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.sm)) {
             Row(
@@ -2180,55 +2175,6 @@ fun LearnFromSmsDialog(
     )
 }
 
-@Composable
-fun ScanSmsCard(
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer 
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                modifier = Modifier.size(32.dp)
-            )
-            
-            Spacer(modifier = Modifier.width(Spacing.md))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Scan Missed SMS",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-                Text(
-                    text = "Find transactions from when app was closed",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
-            
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer
-            )
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

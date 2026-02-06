@@ -59,6 +59,7 @@ import java.util.Locale
 fun AddTransactionScreen(
     onNavigateBack: () -> Unit,
     onTransactionSaved: () -> Unit,
+    onNavigateToSmsSettings: () -> Unit,
     viewModel: AddTransactionViewModel = hiltViewModel(),
     currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
@@ -790,7 +791,8 @@ fun AddTransactionScreen(
             onConfirmLinked = { name, bankSuggestion, accountNumber, type, balance ->
                 viewModel.createLinkedAccount(name, bankSuggestion, accountNumber, type, balance)
                 showAccountSheet = false
-            }
+            },
+            onNavigateToSmsSettings = onNavigateToSmsSettings
         )
     }
 }

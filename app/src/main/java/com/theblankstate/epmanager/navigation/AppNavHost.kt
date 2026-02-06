@@ -161,6 +161,9 @@ fun AppNavHost(
                 },
                 onTransactionSaved = {
                     navController.popBackStack()
+                },
+                onNavigateToSmsSettings = {
+                    navController.navigate(Screen.SmsSettings.route)
                 }
             )
         }
@@ -330,6 +333,9 @@ fun AppNavHost(
                 },
                 onNavigateToDetail = { accountId ->
                     navController.navigate(Screen.AccountDetail.createRoute(accountId))
+                },
+                onNavigateToSmsSettings = {
+                    navController.navigate(Screen.SmsSettings.route)
                 }
             )
         }

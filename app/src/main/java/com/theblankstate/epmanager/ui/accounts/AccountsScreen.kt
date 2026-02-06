@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.theblankstate.epmanager.data.model.Account
@@ -51,6 +52,7 @@ private val availableColors = listOf(
 fun AccountsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
+    onNavigateToSmsSettings: () -> Unit,
     viewModel: AccountsViewModel = hiltViewModel(),
     currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
@@ -244,6 +246,7 @@ fun AccountsScreen(
             onConfirmLinked = { name, bankSuggestion, accountNumber, type, balance ->
                 viewModel.createLinkedAccount(name, bankSuggestion, accountNumber, type, balance)
             },
+            onNavigateToSmsSettings = onNavigateToSmsSettings,
             onAddCustomBank = { bankName, senderIds, onSuccess ->
                 viewModel.addCustomBank(bankName, senderIds, onSuccess)
             }
@@ -264,6 +267,7 @@ fun AccountsScreen(
                     senderIds
                 )
             },
+            onNavigateToSmsSettings = onNavigateToSmsSettings,
             onAddCustomBank = { bankName, senderIds, onSuccess ->
                 viewModel.addCustomBank(bankName, senderIds, onSuccess)
             }
@@ -599,6 +603,7 @@ fun AddEditAccountSheet(
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double) -> Unit,
     onConfirmLinked: (name: String, bankSuggestion: BankSuggestion, accountNumber: String?, type: AccountType, balance: Double) -> Unit,
+    onNavigateToSmsSettings: () -> Unit,
     onAddCustomBank: ((bankName: String, senderIds: String, onSuccess: (BankSuggestion) -> Unit) -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(existingAccount?.name ?: "") }
@@ -1054,87 +1059,38 @@ fun AddEditAccountSheet(
                             }
                         )
                     }
-                    
-                    // Add Custom Bank option at the bottom
-                    if (onAddCustomBank != null) {
-                        item {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
+
+                    // Bottom navigation to SMS screen
+                    item {
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        OutlinedButton(
+                            onClick = {
+                                expandedBank = false
+                                onDismiss()
+                                onNavigateToSmsSettings()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(vertical = Spacing.md)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(Spacing.sm))
+                            Text("Create Custom Bank Template")
                         }
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showAddCustomBankSheet = true },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(Spacing.md),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Add,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Add Custom Bank",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = "Bank not listed? Add it manually",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Filled.ChevronRight,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                        // Notice about sender ID changes
-                        item {
-                            Spacer(modifier = Modifier.height(Spacing.sm))
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(Spacing.sm),
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Lightbulb,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "Banks may update their SMS sender IDs. If your bank's SMS isn't being detected, create a custom bank with the new sender ID found in your SMS.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                                    )
-                                }
-                            }
-                        }
-                        item {
-                            Spacer(modifier = Modifier.height(Spacing.lg))
-                        }
+                        Text(
+                            text = "Add a new bank by scanning its SMS patterns",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = Spacing.xs)
+                        )
                     }
                 }
-            }
         }
     }
+}
     
     // Add Custom Bank Sheet
     if (showAddCustomBankSheet && onAddCustomBank != null) {
@@ -1283,6 +1239,7 @@ private fun LinkAccountDialog(
     bankSuggestions: List<BankSuggestion>,
     onDismiss: () -> Unit,
     onConfirm: (bankCode: String, accountNumber: String?, senderIds: List<String>) -> Unit,
+    onNavigateToSmsSettings: () -> Unit,
     onAddCustomBank: ((bankName: String, senderIds: String, onSuccess: (BankSuggestion) -> Unit) -> Unit)? = null
 ) {
     var selectedBank by remember { mutableStateOf<BankSuggestion?>(null) }
@@ -1536,6 +1493,31 @@ private fun LinkAccountDialog(
                         }
                     }
                 }
+
+                // Bottom navigation to SMS screen
+                Spacer(modifier = Modifier.height(Spacing.md))
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onNavigateToSmsSettings()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    contentPadding = PaddingValues(vertical = Spacing.md)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(Spacing.sm))
+                    Text("Create Custom Bank Template")
+                }
+                Text(
+                    text = "Add a new bank by scanning its SMS patterns",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.xs)
+                )
             }
             
             // Account Number (only when bank selected)
@@ -1587,6 +1569,7 @@ private fun LinkAccountDialog(
                     }
                 }
             }
+
             
             Spacer(modifier = Modifier.height(Spacing.lg))
         }

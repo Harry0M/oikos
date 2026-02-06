@@ -12,6 +12,7 @@ import com.theblankstate.epmanager.data.repository.SavingsGoalRepository
 import com.theblankstate.epmanager.data.repository.SplitRepository
 import com.theblankstate.epmanager.data.repository.TransactionRepository
 import com.theblankstate.epmanager.data.local.dao.SmsTemplateDao
+import com.theblankstate.epmanager.data.repository.AvailableBankRepository
 import com.theblankstate.epmanager.ui.accounts.BankSuggestion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -76,6 +77,7 @@ class AddTransactionViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val accountRepository: AccountRepository,
+    private val availableBankRepository: AvailableBankRepository,
     private val splitRepository: SplitRepository,
     private val friendsRepository: FriendsRepository,
     private val savingsGoalRepository: SavingsGoalRepository,
@@ -454,35 +456,47 @@ class AddTransactionViewModel @Inject constructor(
     
     private fun loadBankSuggestions() {
         viewModelScope.launch {
-            // Get registry banks
-            val registryBanks = (BankRegistry.banks + BankRegistry.upiProviders).map { bank ->
-                BankSuggestion(
-                    name = bank.name,
-                    code = bank.code,
-                    senderPatterns = bank.senderPatterns,
-                    color = bank.color,
-                    isCustom = false
-                )
-            }
-            
-            // Add custom templates
-            smsTemplateDao.getAllActiveTemplates()
-                .collect { templates ->
-                    val customBanks = templates.map { template ->
+            // Combine linkable banks from repository and custom templates
+            combine(
+                availableBankRepository.getLinkableBanks(),
+                smsTemplateDao.getAllActiveTemplates()
+            ) { availableBanks, templates ->
+                val bankSuggestions = availableBanks.map { bank ->
+                    BankSuggestion(
+                        name = bank.bankName,
+                        code = bank.bankCode,
+                        senderPatterns = bank.getSenderIdList(),
+                        color = bank.color,
+                        isCustom = bank.source == com.theblankstate.epmanager.data.model.AvailableBankSource.CUSTOM,
+                        templateId = bank.id
+                    )
+                }
+                
+                // Also include custom templates that aren't in available_banks yet
+                val templateSuggestions = templates
+                    .filter { template -> 
+                        availableBanks.none { 
+                            it.bankName.equals(template.bankName, ignoreCase = true) ||
+                            it.bankCode.equals(template.bankName.uppercase().replace(" ", "_").take(10), ignoreCase = true)
+                        }
+                    }
+                    .map { template ->
                         BankSuggestion(
                             name = template.bankName,
-                            code = template.bankName.uppercase().take(6),
+                            code = template.bankName.uppercase().replace(" ", "_").take(10),
                             senderPatterns = template.senderIds.split(",").map { it.trim() },
-                            color = 0xFF6B7280, // Gray for custom
+                            color = 0xFF6B7280, // Gray for custom templates
                             isCustom = true,
                             templateId = template.id
                         )
                     }
-                    
-                    _uiState.update { 
-                        it.copy(bankSuggestions = registryBanks + customBanks) 
-                    }
+                
+                bankSuggestions + templateSuggestions
+            }.collect { suggestions ->
+                _uiState.update { 
+                    it.copy(bankSuggestions = suggestions) 
                 }
+            }
         }
     }
 
