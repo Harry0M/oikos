@@ -67,6 +67,17 @@ sealed class UpcomingDue(
     ) : UpcomingDue(id, title, amount, dueDate, UpcomingDueType.GOAL)
 }
 
+data class AccountCardData(
+    val id: String,
+    val name: String,
+    val type: String,
+    val balance: Double,
+    val spendingGraphData: List<Float>, // Daily spending (expense)
+    val incomeGraphData: List<Float>,   // Daily income
+    val todayIncome: Double,
+    val todayExpense: Double
+)
+
 enum class UpcomingDueType {
     DEBT, CREDIT, EXPENSE, SUBSCRIPTION, GOAL
 }
@@ -80,6 +91,7 @@ data class HomeUiState(
     val upcomingDues: List<UpcomingDue> = emptyList(),
     val selectedDue: UpcomingDue? = null,
     val accounts: List<com.theblankstate.epmanager.data.model.Account> = emptyList(),
+    val accountCards: List<AccountCardData> = emptyList(),
     val budgetAlerts: List<BudgetWithSpending> = emptyList(),
     val isLoading: Boolean = true
 )
@@ -136,11 +148,108 @@ class HomeViewModel @Inject constructor(
             }
         }
         
-        // Load monthly expenses
+        // Load monthly expenses and calculate graph data
         viewModelScope.launch {
-            transactionRepository.getMonthlyExpenses()
-                .collect { expenses ->
-                    _uiState.update { it.copy(monthlyExpenses = expenses ?: 0.0) }
+            val calendar = java.util.Calendar.getInstance()
+            calendar.set(java.util.Calendar.DAY_OF_MONTH, 1)
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            
+            val startOfMonth = calendar.timeInMillis
+            val daysInMonth = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            val monthRange = startOfMonth..(startOfMonth + (daysInMonth * 24L * 60 * 60 * 1000))
+            
+            transactionRepository.getTransactionsByDateRange(monthRange.first, monthRange.last)
+                .collect { transactions ->
+                    val expenses = transactions.filter { it.type == TransactionType.EXPENSE }
+                    val incomes = transactions.filter { it.type == TransactionType.INCOME }
+                    
+                    // Total Monthly Stats
+                    val totalExpense = expenses.sumOf { it.amount }
+                    val totalIncome = incomes.sumOf { it.amount }
+                    _uiState.update { it.copy(monthlyExpenses = totalExpense, monthlyIncome = totalIncome) }
+                    
+                    // Calculate Global Graph Data & Today's Stats
+                    val daysInMonth = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                    val dailyExpenses = FloatArray(daysInMonth) { 0f }
+                    val dailyIncomes = FloatArray(daysInMonth) { 0f }
+                    
+                    // Get Today's Index
+                    val todayCal = java.util.Calendar.getInstance()
+                    val todayDayIndex = if (todayCal.get(java.util.Calendar.MONTH) == calendar.get(java.util.Calendar.MONTH)) 
+                        todayCal.get(java.util.Calendar.DAY_OF_MONTH) - 1 
+                    else -1
+
+                    var totalTodayExpense = 0.0
+                    var totalTodayIncome = 0.0
+                    
+                    transactions.forEach { txn ->
+                        val dayIndex = java.util.Calendar.getInstance().apply { timeInMillis = txn.date }
+                            .get(java.util.Calendar.DAY_OF_MONTH) - 1
+                        
+                        if (dayIndex in 0 until daysInMonth) {
+                            if (txn.type == TransactionType.EXPENSE) {
+                                dailyExpenses[dayIndex] += txn.amount.toFloat()
+                                if (dayIndex == todayDayIndex) totalTodayExpense += txn.amount
+                            } else if (txn.type == TransactionType.INCOME) {
+                                dailyIncomes[dayIndex] += txn.amount.toFloat()
+                                if (dayIndex == todayDayIndex) totalTodayIncome += txn.amount
+                            }
+                        }
+                    }
+                    
+                    // Calculate Per-Account Data
+                    val accountCards = _uiState.value.accounts.map { account ->
+                        val accTransactions = transactions.filter { it.accountId == account.id }
+                        val accDailyExpenses = FloatArray(daysInMonth) { 0f }
+                        val accDailyIncomes = FloatArray(daysInMonth) { 0f }
+                        var accTodayExpense = 0.0
+                        var accTodayIncome = 0.0
+                        
+                        accTransactions.forEach { txn ->
+                            val dayIndex = java.util.Calendar.getInstance().apply { timeInMillis = txn.date }
+                                .get(java.util.Calendar.DAY_OF_MONTH) - 1
+                            
+                            if (dayIndex in 0 until daysInMonth) {
+                                if (txn.type == TransactionType.EXPENSE) {
+                                    accDailyExpenses[dayIndex] += txn.amount.toFloat()
+                                    if (dayIndex == todayDayIndex) accTodayExpense += txn.amount
+                                } else if (txn.type == TransactionType.INCOME) {
+                                    accDailyIncomes[dayIndex] += txn.amount.toFloat()
+                                    if (dayIndex == todayDayIndex) accTodayIncome += txn.amount
+                                }
+                            }
+                        }
+                        
+                        AccountCardData(
+                            id = account.id,
+                            name = account.name,
+                            type = account.type.name,
+                            balance = account.balance,
+                            spendingGraphData = accDailyExpenses.toList(),
+                            incomeGraphData = accDailyIncomes.toList(),
+                            todayIncome = accTodayIncome,
+                            todayExpense = accTodayExpense
+                        )
+                    }
+                    
+                    // Create "All Accounts" card (Total Balance)
+                    val totalCard = AccountCardData(
+                        id = "all",
+                        name = "Total Balance",
+                        type = "TOTAL",
+                        balance = _uiState.value.totalBalance,
+                        spendingGraphData = dailyExpenses.toList(),
+                        incomeGraphData = dailyIncomes.toList(),
+                        todayIncome = totalTodayIncome,
+                        todayExpense = totalTodayExpense
+                    )
+                    
+                    _uiState.update { 
+                        it.copy(accountCards = listOf(totalCard) + accountCards) 
+                    }
                 }
         }
         
@@ -178,6 +287,8 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             accountRepository.getAllAccounts().collect { accounts ->
                 _uiState.update { it.copy(accounts = accounts) }
+                // Trigger reload of dashboard data to update account cards
+                loadDashboardData()
             }
         }
     }

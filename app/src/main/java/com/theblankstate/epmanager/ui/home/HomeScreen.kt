@@ -242,14 +242,77 @@ fun HomeScreen(
                     }
                 }
                 
-                // Balance Card
+                // Account Cards Carousel
                 item {
-                    BalanceCard(
-                        totalBalance = uiState.totalBalance,
-                        monthlyIncome = uiState.monthlyIncome,
-                        monthlyExpenses = uiState.monthlyExpenses,
-                        currencySymbol = currencySymbol
-                    )
+                    if (uiState.accountCards.isNotEmpty()) {
+                        // Infinite Pager config
+                        val realCount = uiState.accountCards.size
+                        // Start in the middle to allow scrolling left/right immediately.
+                        // We find a multiple of realCount close to Int.MAX_VALUE / 2
+                        val initialIndex = (Int.MAX_VALUE / 2) / realCount * realCount
+                        
+                        val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                            initialPage = initialIndex, // Start at 'Total Balance' effectively (index 0 maps here)
+                            pageCount = { Int.MAX_VALUE }
+                        )
+                        
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        ) {
+                            androidx.compose.foundation.pager.HorizontalPager(
+                                state = pagerState,
+                                // Minimized padding for "freeway" / wider look
+                                contentPadding = PaddingValues(horizontal = Spacing.sm), 
+                                pageSpacing = Spacing.sm
+                            ) { page ->
+                                // Modulo to get actual data index
+                                val realIndex = page % realCount
+                                val cardData = uiState.accountCards[realIndex]
+                                
+                                AccountCard(
+                                    data = cardData,
+                                    currencySymbol = currencySymbol
+                                )
+                            }
+                            
+                            // Pager Indicator (showing real count)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = Spacing.xs),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                repeat(realCount) { iteration ->
+                                    // Calculate currently selected real index
+                                    val currentRealIndex = pagerState.currentPage % realCount
+                                    
+                                    val color = if (currentRealIndex == iteration) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(2.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .size(6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback loading state
+                         Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
                 }
                 
                 // Quick Stats Row

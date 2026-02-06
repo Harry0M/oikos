@@ -30,6 +30,9 @@ import com.theblankstate.epmanager.data.model.AccountType
 import com.theblankstate.epmanager.ui.components.formatAmount
 import com.theblankstate.epmanager.ui.sms.AddCustomBankSheet
 import com.theblankstate.epmanager.ui.theme.*
+import com.theblankstate.epmanager.ui.components.WaveBackground
+import com.theblankstate.epmanager.ui.components.DoodlePattern
+import androidx.compose.foundation.isSystemInDarkTheme
 
 // Available icons for account selection
 private val availableIcons = listOf(
@@ -150,7 +153,7 @@ fun AccountsScreen(
                         items = uiState.linkedAccounts,
                         key = { it.id }
                     ) { account ->
-                        LinkedAccountItem(
+                        ManageableAccountCard(
                             account = account,
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
@@ -174,7 +177,7 @@ fun AccountsScreen(
                         items = uiState.unlinkedAccounts,
                         key = { it.id }
                     ) { account ->
-                        UnlinkedAccountItem(
+                        ManageableAccountCard(
                             account = account,
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
@@ -360,349 +363,189 @@ private fun HelpCard() {
 }
 
 @Composable
-private fun LinkedAccountItem(
+fun ManageableAccountCard(
     account: Account,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onUnlink: () -> Unit,
-    currencySymbol: String
+    currencySymbol: String,
+    onLink: (() -> Unit)? = null,
+    onUnlink: (() -> Unit)? = null
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    // Theme-aware colors
+    val isDark = isSystemInDarkTheme()
+    
+    // Use slightly different aesthetic than Home to distinguish, or identical?
+    // User said "change the accounts card ... to look more material three ... proper motion and doodles".
+    // I will use similar logic to Home but "cleaner" (no graph).
+    
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val primaryColor = MaterialTheme.colorScheme.primary
     
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onEdit),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = containerColor,
+            contentColor = contentColor
         ),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp, 
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Icon Circle with bank branding
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(account.color).copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = getAccountIcon(account.icon),
-                        contentDescription = null,
-                        tint = Color(account.color),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(Spacing.md))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = account.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        // Bank Badge
-                        AssistChip(
-                            onClick = {},
-                            label = { 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.AccountBalance,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Text(
-                                        account.bankCode ?: "Bank",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                }
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                labelColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.height(24.dp)
-                        )
-                        
-                        // Linked Badge
-                        AssistChip(
-                            onClick = {},
-                            label = { 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Sms,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Text(
-                                        "Auto",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                }
-                            },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = Success.copy(alpha = 0.1f),
-                                labelColor = Success
-                            ),
-                            modifier = Modifier.height(24.dp)
-                        )
-                    }
-                    
-                    // Account number hint
-                    if (account.accountNumber != null) {
-                        Text(
-                            text = "****${account.accountNumber}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = formatAmount(account.balance, currencySymbol),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (account.balance >= 0) Success else Error
-                    )
-                }
-            }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Background Animations
+            WaveBackground(
+                modifier = Modifier.matchParentSize(),
+                color = contentColor.copy(alpha = 0.05f)
+            )
             
-            // Actions Row
-            HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
+            DoodlePattern(
+                modifier = Modifier.matchParentSize(),
+                color = contentColor.copy(alpha = 0.03f)
+            )
             
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                horizontalArrangement = Arrangement.End
+            Column(
+                modifier = Modifier.padding(20.dp)
             ) {
-                TextButton(
-                    onClick = onUnlink,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = Warning
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.LinkOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Unlink", style = MaterialTheme.typography.labelMedium)
-                }
-                
-                if (!account.isDefault) {
-                    TextButton(
-                        onClick = { showDeleteDialog = true },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = "Delete",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Delete", style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-            }
-        }
-    }
-    
-    if (showDeleteDialog) {
-        DeleteConfirmDialog(
-            accountName = account.name,
-            onConfirm = {
-                onDelete()
-                showDeleteDialog = false
-            },
-            onDismiss = { showDeleteDialog = false }
-        )
-    }
-}
-
-@Composable
-private fun UnlinkedAccountItem(
-    account: Account,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onLink: () -> Unit,
-    currencySymbol: String
-) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onEdit),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.md),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Icon Circle
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color(account.color).copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = getAccountIcon(account.icon),
-                        contentDescription = null,
-                        tint = Color(account.color),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.width(Spacing.md))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = account.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                    ) {
-                        AssistChip(
-                            onClick = {},
-                            label = { 
-                                Text(
-                                    account.type.name.replace("_", " "),
-                                    style = MaterialTheme.typography.labelSmall
-                                ) 
-                            },
-                            modifier = Modifier.height(24.dp)
-                        )
-                        if (account.isDefault) {
-                            AssistChip(
-                                onClick = {},
-                                label = { 
-                                    Text(
-                                        "Default",
-                                        style = MaterialTheme.typography.labelSmall
-                                    ) 
-                                },
-                                modifier = Modifier.height(24.dp)
-                            )
-                        }
-                    }
-                }
-                
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = formatAmount(account.balance, currencySymbol),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (account.balance >= 0) Success else Error
-                    )
-                }
-            }
-            
-            // Link prompt for non-cash accounts
-            if (account.type != AccountType.CASH) {
-                HorizontalDivider(modifier = Modifier.padding(horizontal = Spacing.md))
-                
+                // Top Row: Icon + Name + Chips
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Enable SMS auto-detection →",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    
-                    Row {
-                        TextButton(
-                            onClick = onLink,
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary
-                            )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(account.color).copy(alpha = 0.2f),
+                            contentColor = Color(account.color),
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.Link,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Link Bank", style = MaterialTheme.typography.labelMedium)
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = getAccountIcon(account.icon),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                         
-                        if (!account.isDefault) {
-                            TextButton(
-                                onClick = { showDeleteDialog = true },
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                                )
+                        Column {
+                            Text(
+                                text = account.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            // Badges/Chips
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 4.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Delete,
-                                    contentDescription = "Delete",
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                if (account.isLinked) {
+                                    Text(
+                                        text = "AUTO • ${account.bankCode ?: "BANK"}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF16A34A), // Green for auto
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    Text(
+                                        text = account.type.name.replace("_", " "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                
+                                if (account.isDefault) {
+                                    Text(
+                                        text = "DEFAULT",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            } else if (!account.isDefault) {
-                // Cash account actions
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Balance
+                Text(
+                    text = "Current Balance",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = formatAmount(account.balance, currencySymbol),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Actions Row
+                // Using FilledTonalButton or TextButton for actions
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.xs),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(
-                        onClick = { showDeleteDialog = true },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                        )
+                    // Link/Unlink Action
+                    if (onLink != null) {
+                        Button(
+                            onClick = onLink,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            shape = MaterialTheme.shapes.large,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Link, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Link Bank")
+                        }
+                    } else if (onUnlink != null) {
+                        OutlinedButton(
+                            onClick = onUnlink,
+                            shape = MaterialTheme.shapes.large,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.LinkOff, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Unlink")
+                        }
+                    } else {
+                         Spacer(Modifier.weight(1f)) // Filler if no link action
+                    }
+
+                    // Edit
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = "Delete",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Delete", style = MaterialTheme.typography.labelMedium)
+                        Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                    
+                    // Delete
+                    if (!account.isDefault) {
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.errorContainer, CircleShape)
+                        ) {
+                            Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                        }
                     }
                 }
             }
