@@ -56,6 +56,9 @@ fun AppNavHost(
                 onNavigateToTransactionDetail = { transactionId ->
                     navController.navigate(Screen.TransactionDetail.createRoute(transactionId))
                 },
+                onNavigateToAccountDetail = { accountId ->
+                    navController.navigate(Screen.AccountDetail.createRoute(accountId))
+                },
                 onNavigateToAccounts = {
                     navController.navigate(Screen.Accounts.route)
                 },
@@ -324,6 +327,27 @@ fun AppNavHost(
             AccountsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToDetail = { accountId ->
+                    navController.navigate(Screen.AccountDetail.createRoute(accountId))
+                }
+            )
+        }
+        
+        composable(
+            route = Screen.AccountDetail.route,
+            arguments = listOf(
+                navArgument("accountId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val accountId = backStackEntry.arguments?.getString("accountId") ?: ""
+            com.theblankstate.epmanager.ui.accounts.AccountDetailScreen(
+                accountId = accountId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToTransaction = { transactionId ->
+                    navController.navigate(Screen.TransactionDetail.createRoute(transactionId))
                 }
             )
         }

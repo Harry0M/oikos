@@ -89,6 +89,7 @@ private fun getCategoryIcon(iconName: String): ImageVector = when (iconName) {
 fun HomeScreen(
     onNavigateToAddTransaction: () -> Unit,
     onNavigateToTransactions: () -> Unit,
+    onNavigateToAccountDetail: (String) -> Unit = {},
     onNavigateToTransactionDetail: (String) -> Unit = {},
     onNavigateToAccounts: () -> Unit = {},
     onNavigateToRecurring: () -> Unit = {},
@@ -271,7 +272,14 @@ fun HomeScreen(
                                 
                                 AccountCard(
                                     data = cardData,
-                                    currencySymbol = currencySymbol
+                                    currencySymbol = currencySymbol,
+                                    onClick = { 
+                                        if (cardData.id != "all") {
+                                            onNavigateToAccountDetail(cardData.id)
+                                        } else {
+                                            onNavigateToAccounts()
+                                        }
+                                    }
                                 )
                             }
                             

@@ -50,6 +50,7 @@ private val availableColors = listOf(
 @Composable
 fun AccountsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToDetail: (String) -> Unit,
     viewModel: AccountsViewModel = hiltViewModel(),
     currencyViewModel: com.theblankstate.epmanager.util.CurrencyViewModel = hiltViewModel()
 ) {
@@ -155,6 +156,7 @@ fun AccountsScreen(
                     ) { account ->
                         ManageableAccountCard(
                             account = account,
+                            onClick = { onNavigateToDetail(account.id) },
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
                             onUnlink = { viewModel.unlinkAccount(account) },
@@ -179,6 +181,7 @@ fun AccountsScreen(
                     ) { account ->
                         ManageableAccountCard(
                             account = account,
+                            onClick = { onNavigateToDetail(account.id) },
                             onEdit = { viewModel.showEditDialog(account) },
                             onDelete = { viewModel.deleteAccount(account) },
                             onLink = { viewModel.showLinkDialog(account) },
@@ -365,6 +368,7 @@ private fun HelpCard() {
 @Composable
 fun ManageableAccountCard(
     account: Account,
+    onClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     currencySymbol: String,
@@ -387,7 +391,7 @@ fun ManageableAccountCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit),
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = containerColor,

@@ -26,6 +26,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY date DESC")
     fun getTransactionsByAccount(accountId: String): Flow<List<Transaction>>
 
+    @Query("SELECT * FROM transactions WHERE accountId = :accountId AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
+    fun getTransactionsByAccountAndDateRange(accountId: String, startDate: Long, endDate: Long): Flow<List<Transaction>>
+
     @Query("SELECT * FROM transactions WHERE goalId = :goalId ORDER BY date DESC")
     fun getTransactionsByGoal(goalId: String): Flow<List<Transaction>>
 
