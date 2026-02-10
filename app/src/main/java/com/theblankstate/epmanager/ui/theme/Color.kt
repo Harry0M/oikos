@@ -46,9 +46,9 @@ val BlueLight = Color(0xFFDBEAFE)
 val BlueDark = Color(0xFF1D4ED8)
 
 // Purple
-val Purple = Color(0xFF8B5CF6)
-val PurpleLight = Color(0xFFEDE9FE)
-val PurpleDark = Color(0xFF6D28D9)
+val Purple = Color(0xFF9C27B0)
+val PurpleLight = Color(0xFFE1BEE7)
+val PurpleDark = Color(0xFF7B1FA2)
 
 // Teal
 val Teal = Color(0xFF14B8A6)

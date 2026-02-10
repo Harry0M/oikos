@@ -7,6 +7,30 @@ import androidx.room.PrimaryKey
 import java.util.UUID
 
 /**
+ * Plan types for expense groups (Trip, Groceries, etc.)
+ */
+enum class PlanType(val displayName: String, val emoji: String) {
+    TRIP("Trip", "✈️"),
+    VACATION("Vacation", "🏖️"),
+    GROCERIES("Groceries", "🛒"),
+    STUDY("Study Expenses", "📚"),
+    SCHOOL_BAG("School Bag", "🎒"),
+    ROOMMATES("Roommates", "🏠"),
+    EVENT("Event", "🎉"),
+    FOOD("Food & Dining", "🍕"),
+    OFFICE("Office", "💼"),
+    SPORTS("Sports", "⚽"),
+    GAMING("Gaming", "🎮"),
+    PARTY("Party", "🎊"),
+    WEDDING("Wedding", "💒"),
+    GIFTS("Gifts", "🎁"),
+    HOME("Home", "🏡"),
+    CAR_POOL("Car Pool", "🚗"),
+    PROJECT("Project", "📋"),
+    OTHER("Other", "📁")
+}
+
+/**
  * Represents a group for expense splitting (e.g., "Roommates", "Trip to Goa")
  */
 @Entity(tableName = "split_groups")
@@ -16,6 +40,8 @@ data class SplitGroup(
     val name: String,
     val description: String? = null,
     val emoji: String = "👥", // Group icon
+    val planType: PlanType = PlanType.OTHER, // Type of plan (Trip, Groceries, etc.)
+    val enableSplit: Boolean = true, // Whether splitting is enabled for this group
     val budget: Double? = null, // Optional overall budget for the group
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -79,6 +105,9 @@ data class SplitExpense(
     val totalAmount: Double,
     val paidById: String?, // Who paid
     val splitType: SplitType = SplitType.EQUAL,
+    val enableSplit: Boolean = true, // Whether this expense should be split
+    val includedMemberIds: String? = null, // Comma-separated member IDs (null = all members)
+    val customUserShare: Double? = null, // Custom share for current user (overrides auto-calc)
     val date: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -34,6 +34,22 @@ import kotlin.math.absoluteValue
 
 private val groupEmojis = listOf("👥", "🏠", "✈️", "🍕", "🎉", "💼", "🎮", "🛒", "☕", "🚗")
 
+// Extended icon categories with 50+ icons
+private val planTypeIcons = mapOf(
+    "Travel" to listOf("✈️", "🏖️", "🗺️", "🏔️", "⛺", "🚂", "🚗", "🛳️", "🎒", "🧳"),
+    "Food" to listOf("🍕", "🍔", "☕", "🍽️", "🛒", "🧺", "🥘", "🍱", "🍰", "🥗"),
+    "Events" to listOf("🎉", "🎊", "💒", "🎂", "🎁", "🪅", "🎄", "🎃", "🎭", "🎬"),
+    "Home" to listOf("🏠", "🏡", "🛋️", "🛏️", "🧹", "🔧", "🏗️", "🪴", "🛁", "🪑"),
+    "Education" to listOf("📚", "🎒", "✏️", "📝", "🎓", "🏫", "💻", "📖", "🔬", "🧮"),
+    "Sports" to listOf("⚽", "🏀", "🎮", "🏋️", "🚴", "⛳", "🎯", "🏓", "🎾", "🏊"),
+    "Work" to listOf("💼", "📋", "📊", "🖥️", "📱", "💡", "🔬", "📈", "💰", "🏢"),
+    "Other" to listOf("👥", "💰", "🪙", "💳", "🧾", "📦", "🎲", "🔖", "❤️", "⭐")
+)
+
+// All icons flattened for quick access
+private val allIcons: List<String> = planTypeIcons.values.flatten()
+
+
 @Composable
 fun SplitScreen(
     onNavigateBack: () -> Unit,
@@ -74,24 +90,26 @@ fun SplitScreen(
         CreateGroupSheet(
             friends = uiState.friends,
             onDismiss = { viewModel.hideCreateGroupSheet() },
-            onConfirm = { name, emoji, members, selectedFriends, budget ->
-                viewModel.createGroup(name, emoji, members, selectedFriends, budget)
+            onConfirm = { name, emoji, planType, members, selectedFriends, budget ->
+                viewModel.createGroup(name, emoji, planType, members, selectedFriends, budget)
             },
             currencySymbol = currencySymbol
         )
     }
+
     
     if (uiState.showAddExpenseSheet) {
         AddExpenseSheet(
             members = uiState.groupMembers,
             accounts = uiState.accounts,
             onDismiss = { viewModel.hideAddExpenseSheet() },
-            onConfirm = { desc, amount, paidBy, accountId ->
-                viewModel.addExpense(desc, amount, paidBy, accountId)
+            onConfirm = { desc, amount, paidBy, accountId, enableSplit, includedMemberIds, customShares, instantSettle ->
+                viewModel.addExpense(desc, amount, paidBy, accountId, enableSplit, includedMemberIds, customShares, instantSettle)
             },
             currencySymbol = currencySymbol
         )
     }
+
     
     if (uiState.showAddMemberSheet) {
         AddMemberSheet(
@@ -194,23 +212,25 @@ private fun GroupCard(
     onClick: () -> Unit,
     currencySymbol: String
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    // Minimal design without heavy backgrounds
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.md, horizontal = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(groupWithMembers.group.emoji, style = MaterialTheme.typography.titleLarge)
-            }
+            // Clean emoji without heavy background
+            Text(
+                groupWithMembers.group.emoji, 
+                style = MaterialTheme.typography.headlineMedium
+            )
             
             Spacer(modifier = Modifier.width(Spacing.md))
             
@@ -220,22 +240,23 @@ private fun GroupCard(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    "${groupWithMembers.members.size} members",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                // Show budget progress if budget is set
-                groupWithMembers.group.budget?.let { budget ->
-                    val progress = (groupWithMembers.totalExpenses / budget).coerceIn(0.0, 1.0)
-                    val isOverBudget = groupWithMembers.totalExpenses > budget
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { progress.toFloat() },
-                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-                        color = if (isOverBudget) Error else MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Text(
+                        "${groupWithMembers.members.size} members",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (groupWithMembers.group.planType != PlanType.OTHER) {
+                        Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        Text(
+                            groupWithMembers.group.planType.displayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             
@@ -243,24 +264,30 @@ private fun GroupCard(
                 Text(
                     formatAmount(groupWithMembers.totalExpenses, currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                // Show budget or "total" label
                 groupWithMembers.group.budget?.let { budget ->
+                    val progress = ((groupWithMembers.totalExpenses / budget) * 100).toInt()
                     Text(
-                        "of ${formatAmount(budget, currencySymbol)}",
+                        "${progress}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (groupWithMembers.totalExpenses > budget) Error else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (progress > 100) Error else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                } ?: Text(
-                    "total",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                }
             }
+            
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(start = Spacing.xs)
+            )
         }
     }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 }
+
 
 @Composable
 private fun GroupDetailScreen(
@@ -565,15 +592,22 @@ private fun ExpenseCard(expense: SplitExpense, paidBy: GroupMember?, currencySym
 private fun CreateGroupSheet(
     friends: List<Friend> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (name: String, emoji: String, members: List<String>, selectedFriends: List<Friend>, budget: Double?) -> Unit,
+    onConfirm: (name: String, emoji: String, planType: PlanType, members: List<String>, selectedFriends: List<Friend>, budget: Double?) -> Unit,
     currencySymbol: String
 ) {
     var name by remember { mutableStateOf("") }
     var selectedEmoji by remember { mutableStateOf("👥") }
+    var selectedPlanType by remember { mutableStateOf(PlanType.OTHER) }
     var memberNames by remember { mutableStateOf(listOf("")) }
     var selectedFriends by remember { mutableStateOf<Set<Friend>>(emptySet()) }
     var budgetText by remember { mutableStateOf("") }
+    var showAllIcons by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    
+    // Auto-select emoji based on plan type
+    LaunchedEffect(selectedPlanType) {
+        selectedEmoji = selectedPlanType.emoji
+    }
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -587,18 +621,37 @@ private fun CreateGroupSheet(
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Create Group",
+                "Plan Your...",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Plan Type Selector
+            Text("What are you planning?", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                items(PlanType.entries.toList()) { planType ->
+                    FilterChip(
+                        selected = selectedPlanType == planType,
+                        onClick = { selectedPlanType = planType },
+                        label = { Text(planType.displayName) },
+                        leadingIcon = {
+                            Text(planType.emoji, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.height(Spacing.lg))
             
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Group Name") },
-                placeholder = { Text("Trip to Goa, Roommates...") },
+                label = { Text("${selectedPlanType.displayName} Name") },
+                placeholder = { Text("e.g., ${selectedPlanType.displayName} with friends") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -618,23 +671,64 @@ private fun CreateGroupSheet(
             
             Spacer(modifier = Modifier.height(Spacing.md))
             
-            Text("Choose Icon", style = MaterialTheme.typography.labelLarge)
+            // Icon Selector with Categories
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Choose Icon", style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = { showAllIcons = !showAllIcons }) {
+                    Text(if (showAllIcons) "Show Less" else "Show All")
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                items(groupEmojis) { emoji ->
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (emoji == selectedEmoji) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .clickable { selectedEmoji = emoji },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(emoji, style = MaterialTheme.typography.titleMedium)
+            if (showAllIcons) {
+                // Show icons by category
+                planTypeIcons.forEach { (category, icons) ->
+                    Text(
+                        category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        items(icons) { emoji ->
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (emoji == selectedEmoji) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                    .clickable { selectedEmoji = emoji },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(emoji, style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                }
+            } else {
+                // Show quick icons
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    items(groupEmojis + listOf(selectedPlanType.emoji).filter { it !in groupEmojis }) { emoji ->
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (emoji == selectedEmoji) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable { selectedEmoji = emoji },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(emoji, style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 }
             }
@@ -746,7 +840,8 @@ private fun CreateGroupSheet(
                         val budget = budgetText.toDoubleOrNull()
                         onConfirm(
                             name, 
-                            selectedEmoji, 
+                            selectedEmoji,
+                            selectedPlanType,
                             memberNames.filter { it.isNotBlank() },
                             selectedFriends.toList(),
                             budget
@@ -757,7 +852,7 @@ private fun CreateGroupSheet(
                 enabled = name.isNotBlank(),
                 shape = ButtonShape
             ) {
-                Text("Create Group")
+                Text("Create ${selectedPlanType.displayName}")
             }
         }
     }
@@ -769,18 +864,41 @@ private fun AddExpenseSheet(
     members: List<GroupMember>,
     accounts: List<Account>,
     onDismiss: () -> Unit,
-    onConfirm: (description: String, amount: Double, paidById: String, accountId: String?) -> Unit,
+    onConfirm: (description: String, amount: Double, paidById: String, accountId: String?, enableSplit: Boolean, includedMemberIds: List<String>?, customShares: Map<String, Double>?, instantSettle: Boolean) -> Unit,
     currencySymbol: String
 ) {
     var description by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var selectedPayer by remember { mutableStateOf(members.find { it.isCurrentUser }) }
-    var selectedAccount by remember { mutableStateOf<Account?>(null) }
-    var payerExpanded by remember { mutableStateOf(false) }
-    var accountExpanded by remember { mutableStateOf(false) }
+    // Default to Cash account
+    val cashAccount = accounts.find { it.name.equals("Cash", ignoreCase = true) }
+    var selectedAccount by remember { mutableStateOf(cashAccount ?: accounts.firstOrNull()) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
+    // New state for bottom sheet selectors
+    var showPayerSheet by remember { mutableStateOf(false) }
+    var showAccountSheet by remember { mutableStateOf(false) }
+    var showRepayAccountSheet by remember { mutableStateOf(false) }
+    
+    // Repayment account when someone else pays
+    var repaymentAccount by remember { mutableStateOf(cashAccount ?: accounts.firstOrNull()) }
+    
+    // Split options
+    var enableSplit by remember { mutableStateOf(true) }
+    var selectedMemberIds by remember { mutableStateOf(members.map { it.id }.toSet()) }
+    
+    // Custom share per member
+    var customSharesEnabled by remember { mutableStateOf(false) }
+    var customShares by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    
+    // Instant settle toggle (when someone else pays)
+    var instantSettle by remember { mutableStateOf(false) }
+    
     val isPaidByMe = selectedPayer?.isCurrentUser == true
+    val amountValue = amount.toDoubleOrNull() ?: 0.0
+    val membersInSplit = members.filter { it.id in selectedMemberIds }
+    val autoCalculatedShare = if (membersInSplit.isNotEmpty()) amountValue / membersInSplit.size else 0.0
+
     
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -791,6 +909,7 @@ private fun AddExpenseSheet(
                 .fillMaxWidth()
                 .padding(horizontal = Spacing.lg)
                 .padding(bottom = Spacing.xxl)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 "Add Expense",
@@ -823,69 +942,237 @@ private fun AddExpenseSheet(
             
             Spacer(modifier = Modifier.height(Spacing.md))
             
-            ExposedDropdownMenuBox(
-                expanded = payerExpanded,
-                onExpandedChange = { payerExpanded = it }
+            // Paid By - Clickable field that opens bottom sheet
+            Text("Paid by", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Card(
+                onClick = { showPayerSheet = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.outlinedCardColors()
             ) {
-                OutlinedTextField(
-                    value = if (selectedPayer?.isCurrentUser == true) "You" else selectedPayer?.name ?: "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Paid by") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(payerExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(expanded = payerExpanded, onDismissRequest = { payerExpanded = false }) {
-                    members.forEach { member ->
-                        DropdownMenuItem(
-                            text = { Text(if (member.isCurrentUser) "You" else member.name) },
-                            onClick = { selectedPayer = member; payerExpanded = false }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                (if (selectedPayer?.isCurrentUser == true) "Y" else selectedPayer?.name?.firstOrNull()?.toString() ?: "?"),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text(
+                            if (selectedPayer?.isCurrentUser == true) "You" else selectedPayer?.name ?: "Select...",
+                            style = MaterialTheme.typography.bodyLarge
                         )
+                    }
+                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null)
+                }
+            }
+            
+            // Account Selection - Always show (mandatory)
+            if (accounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text(
+                    if (isPaidByMe) "From Account" else "Your Repayment Account",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                if (!isPaidByMe) {
+                    Text(
+                        "You'll repay ${selectedPayer?.name ?: "them"} from this account",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Card(
+                    onClick = { showAccountSheet = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.sm))
+                            Text(
+                                selectedAccount?.name ?: "Select Account",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null)
                     }
                 }
             }
             
-            // Show account selection only if paid by "You"
-            if (isPaidByMe && accounts.isNotEmpty()) {
+            // Instant Settle option (only when someone else pays)
+            if (!isPaidByMe && enableSplit) {
                 Spacer(modifier = Modifier.height(Spacing.md))
-                
-                ExposedDropdownMenuBox(
-                    expanded = accountExpanded,
-                    onExpandedChange = { accountExpanded = it }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        value = selectedAccount?.name ?: "Select Account",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("From Account") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(accountExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    Column {
+                        Text("Mark as Settled", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "Record transaction and clear your debt immediately",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = instantSettle,
+                        onCheckedChange = { instantSettle = it }
                     )
-                    ExposedDropdownMenu(expanded = accountExpanded, onDismissRequest = { accountExpanded = false }) {
-                        accounts.forEach { account ->
-                            DropdownMenuItem(
-                                text = { Text(account.name) },
-                                onClick = { selectedAccount = account; accountExpanded = false }
-                            )
-                        }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Split Options Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Split this expense", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        if (enableSplit) "Split among ${membersInSplit.size} members" else "No split - personal expense",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enableSplit,
+                    onCheckedChange = { enableSplit = it }
+                )
+            }
+            
+            // Member Selection for Split
+            if (enableSplit) {
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text("Include in split:", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    items(members) { member ->
+                        val isSelected = member.id in selectedMemberIds
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedMemberIds = if (isSelected) {
+                                    selectedMemberIds - member.id
+                                } else {
+                                    selectedMemberIds + member.id
+                                }
+                            },
+                            label = { Text(if (member.isCurrentUser) "You" else member.name) },
+                            leadingIcon = {
+                                if (isSelected) {
+                                    Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        )
                     }
                 }
                 
-                Text(
-                    "This expense will be recorded as a transaction",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.xs)
-                )
+                // Custom split amounts per member
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Custom amounts", style = MaterialTheme.typography.labelMedium)
+                    Switch(
+                        checked = customSharesEnabled,
+                        onCheckedChange = { customSharesEnabled = it }
+                    )
+                }
+                
+                if (customSharesEnabled && amountValue > 0) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    membersInSplit.forEach { member ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (member.isCurrentUser) "You" else member.name,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            OutlinedTextField(
+                                value = customShares[member.id] ?: String.format("%.2f", autoCalculatedShare),
+                                onValueChange = { newValue ->
+                                    customShares = customShares + (member.id to newValue.filter { c -> c.isDigit() || c == '.' })
+                                },
+                                prefix = { Text(currencySymbol) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                modifier = Modifier.width(110.dp)
+                            )
+                        }
+                    }
+                } else if (amountValue > 0) {
+                    Text(
+                        "Each pays: ${currencySymbol}${String.format("%.2f", autoCalculatedShare)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = Spacing.xs)
+                    )
+                }
             }
+
             
             Spacer(modifier = Modifier.height(Spacing.xl))
             
             Button(
                 onClick = {
-                    val amountValue = amount.toDoubleOrNull()
-                    if (description.isNotBlank() && amountValue != null && selectedPayer != null) {
-                        onConfirm(description, amountValue, selectedPayer!!.id, selectedAccount?.id)
+                    if (description.isNotBlank() && amountValue > 0 && selectedPayer != null) {
+                        // Convert customShares map from String to Double for all members
+                        val customSharesMap = if (customSharesEnabled) {
+                            customShares.mapNotNull { (memberId, value) ->
+                                value.toDoubleOrNull()?.let { memberId to it }
+                            }.toMap().takeIf { it.isNotEmpty() }
+                        } else null
+                        val includedIds = if (enableSplit && selectedMemberIds.size < members.size) selectedMemberIds.toList() else null
+                        onConfirm(description, amountValue, selectedPayer!!.id, selectedAccount?.id, enableSplit, includedIds, customSharesMap, instantSettle)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -896,7 +1183,164 @@ private fun AddExpenseSheet(
             }
         }
     }
+    
+    // Payer Selection Bottom Sheet
+    if (showPayerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPayerSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg)
+                    .padding(bottom = Spacing.xxl)
+            ) {
+                Text(
+                    "Who paid?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                members.forEach { member ->
+                    val isSelected = selectedPayer?.id == member.id
+                    Card(
+                        onClick = {
+                            selectedPayer = member
+                            showPayerSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+                        colors = if (isSelected) CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ) else CardDefaults.outlinedCardColors()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    (if (member.isCurrentUser) "Y" else member.name.firstOrNull()?.toString() ?: "?"),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Text(
+                                if (member.isCurrentUser) "You" else member.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Account Selection Bottom Sheet
+    if (showAccountSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAccountSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.lg)
+                    .padding(bottom = Spacing.xxl)
+            ) {
+                Text(
+                    "Select Account",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                accounts.forEach { account ->
+                    val isSelected = selectedAccount?.id == account.id
+                    Card(
+                        onClick = {
+                            selectedAccount = account
+                            showAccountSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+                        colors = if (isSelected) CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ) else CardDefaults.outlinedCardColors()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Column {
+                                Text(
+                                    account.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                Text(
+                                    "${currencySymbol}${String.format("%.2f", account.balance)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

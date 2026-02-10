@@ -212,12 +212,42 @@ fun SettingsScreen(
             onClick = onNavigateToFriends
         )
         
+        // Animated Plan Your text
+        val planTypes = listOf("Trip", "Vacation", "Groceries", "Party", "Event", "Home", "Project", "Adventure")
+        var currentTypeIndex by remember { mutableIntStateOf(0) }
+        
+        LaunchedEffect(Unit) {
+            while (true) {
+                kotlinx.coroutines.delay(1500)
+                currentTypeIndex = (currentTypeIndex + 1) % planTypes.size
+            }
+        }
+        
         SettingsItem(
             icon = Icons.Filled.Groups,
-            title = "Split Expenses",
+            title = "",
+            titleContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Plan Your ", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = planTypes[currentTypeIndex],
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            },
             subtitle = "Track shared expenses with groups",
             onClick = onNavigateToSplit
         )
+
+
         
         SettingsItem(
             icon = Icons.Filled.CreditCard,
@@ -479,7 +509,8 @@ private fun SettingsItem(
     title: String,
     subtitle: String,
     isDestructive: Boolean = false,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    titleContent: (@Composable () -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -509,15 +540,19 @@ private fun SettingsItem(
             Spacer(modifier = Modifier.width(Spacing.md))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = if (isDestructive) 
-                        MaterialTheme.colorScheme.error 
-                    else 
-                        MaterialTheme.colorScheme.onSurface
-                )
+                if (titleContent != null) {
+                    titleContent()
+                } else {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isDestructive) 
+                            MaterialTheme.colorScheme.error 
+                        else 
+                            MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,

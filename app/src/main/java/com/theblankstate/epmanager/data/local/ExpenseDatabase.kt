@@ -30,6 +30,7 @@ import com.theblankstate.epmanager.data.model.Friend
 import com.theblankstate.epmanager.data.model.FriendRequest
 import com.theblankstate.epmanager.data.model.GroupMember
 import com.theblankstate.epmanager.data.model.PendingSms
+import com.theblankstate.epmanager.data.model.PlanType
 import com.theblankstate.epmanager.data.model.RecurringExpense
 import com.theblankstate.epmanager.data.model.SavingsGoal
 import com.theblankstate.epmanager.data.model.Settlement
@@ -39,6 +40,24 @@ import com.theblankstate.epmanager.data.model.SplitGroup
 import com.theblankstate.epmanager.data.model.TermsAcceptance
 import com.theblankstate.epmanager.data.model.Transaction
 import com.theblankstate.epmanager.data.model.AppNotification
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+
+/**
+ * Type converters for Room database
+ */
+class Converters {
+    @TypeConverter
+    fun fromPlanType(value: PlanType): String = value.name
+    
+    @TypeConverter
+    fun toPlanType(value: String): PlanType = try {
+        PlanType.valueOf(value)
+    } catch (e: IllegalArgumentException) {
+        PlanType.OTHER
+    }
+}
+
 
 @Database(
     entities = [
@@ -64,9 +83,10 @@ import com.theblankstate.epmanager.data.model.AppNotification
         AvailableBank::class,
         com.theblankstate.epmanager.data.model.CategorizationRule::class
     ],
-    version = 19, // Added CategorizationRule entity
+    version = 20, // Added PlanType and split enhancements
     exportSchema = false
 )
+@TypeConverters(Converters::class)
 abstract class ExpenseDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun accountDao(): AccountDao
@@ -218,12 +238,26 @@ abstract class ExpenseDatabase : RoomDatabase() {
                     }
                 }
 
+                // Migration to add PlanType and split enhancements
+                val MIGRATION_19_20 = object : Migration(19, 20) {
+                    override fun migrate(database: SupportSQLiteDatabase) {
+                        // Add planType and enableSplit to split_groups
+                        database.execSQL("ALTER TABLE split_groups ADD COLUMN planType TEXT NOT NULL DEFAULT 'OTHER'")
+                        database.execSQL("ALTER TABLE split_groups ADD COLUMN enableSplit INTEGER NOT NULL DEFAULT 1")
+                        
+                        // Add enableSplit, includedMemberIds, and customUserShare to split_expenses
+                        database.execSQL("ALTER TABLE split_expenses ADD COLUMN enableSplit INTEGER NOT NULL DEFAULT 1")
+                        database.execSQL("ALTER TABLE split_expenses ADD COLUMN includedMemberIds TEXT DEFAULT NULL")
+                        database.execSQL("ALTER TABLE split_expenses ADD COLUMN customUserShare REAL DEFAULT NULL")
+                    }
+                }
+
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExpenseDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                    .addMigrations(MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

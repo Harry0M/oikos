@@ -69,7 +69,7 @@ fun OnboardingScreen(
     var currentStep by remember { mutableStateOf(OnboardingStep.WELCOME) }
     var isGoogleSignInLoading by remember { mutableStateOf(false) }
     var selectedCurrency by remember { mutableStateOf<Currency?>(null) }
-    var selectedTheme by remember { mutableStateOf(AppTheme.ROSE) }
+    var selectedTheme by remember { mutableStateOf(AppTheme.MONOCHROME) }
     var currencySearchQuery by remember { mutableStateOf("") }
     
     // Track if user explicitly initiated sign-in during this onboarding session
@@ -245,9 +245,6 @@ fun OnboardingScreen(
                                 onboardingViewModel.completeOnboarding()
                                 onOnboardingComplete()
                             }
-                        },
-                        onAddCustomBank = { bankName, senderIds ->
-                            onboardingViewModel.addCustomBank(bankName, senderIds)
                         }
                     )
                 }
@@ -993,218 +990,241 @@ private fun ThemeStep(
     
     var selectedCustomColor by remember { mutableStateOf(customColors[0]) }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = Spacing.lg)
-            .padding(top = 80.dp, bottom = Spacing.lg),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Text(
-            text = "🎨",
-            fontSize = 48.sp
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.md))
-        
-        Text(
-            text = "Choose Your Style",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        
-        Text(
-            text = "You can change this anytime in Settings",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        
-        // Recommended Section Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.lg)
+                .padding(top = 80.dp, bottom = Spacing.xxl), // Add bottom padding for FAB
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                Icons.Filled.Star,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(Spacing.xs))
             Text(
-                text = "Recommended",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+                text = "🎨",
+                fontSize = 48.sp
             )
-        }
-        
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        
-        // Rose Theme - Recommended
-        ThemeOption(
-            name = "Rose",
-            description = "Warm & elegant • Best for daily use",
-            colors = listOf(Rose, RoseLight),
-            isSelected = selectedTheme == AppTheme.ROSE,
-            isRecommended = true,
-            onClick = { 
-                onThemeSelected(AppTheme.ROSE)
-                themeViewModel.setAppTheme(AppTheme.ROSE)
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        
-        // Monochrome Theme - Recommended
-        ThemeOption(
-            name = "Monochrome",
-            description = "Clean & minimal • Easy on the eyes",
-            colors = listOf(Color(0xFF374151), Color(0xFF6B7280)),
-            isSelected = selectedTheme == AppTheme.MONOCHROME,
-            isRecommended = true,
-            onClick = { 
-                onThemeSelected(AppTheme.MONOCHROME)
-                themeViewModel.setAppTheme(AppTheme.MONOCHROME)
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        
-        // More Options Section Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Filled.Palette,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(Spacing.xs))
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
             Text(
-                text = "More Colors",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
+                text = "Choose Your Style",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            
+            Text(
+                text = "You can change this anytime in Settings",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        
-        // Color picker grid
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (selectedTheme == AppTheme.CUSTOM) 
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(Spacing.md)
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Recommended Section Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Pick a color theme",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
                 )
-                
-                Spacer(modifier = Modifier.height(Spacing.md))
-                
-                // Color circles in a row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text(
+                    text = "Recommended",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // Monochrome Theme - Recommended (1st)
+            ThemeOption(
+                name = "Monochrome",
+                description = "Clean & minimal • Easy on the eyes",
+                colors = listOf(Color(0xFF374151), Color(0xFF6B7280)),
+                isSelected = selectedTheme == AppTheme.MONOCHROME,
+                isRecommended = true,
+                onClick = { 
+                    onThemeSelected(AppTheme.MONOCHROME)
+                    themeViewModel.setAppTheme(AppTheme.MONOCHROME)
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // Purple Theme - Recommended (2nd)
+            ThemeOption(
+                name = "Purple",
+                description = "Vibrant & modern • Light theme enabled",
+                colors = listOf(Purple, PurpleLight),
+                isSelected = selectedTheme == AppTheme.CUSTOM && selectedCustomColor.name == "Purple", 
+                // Note: The logic for selecting "Purple" specifically needs to handle CUSTOM theme + Purple color. 
+                // However, since 'Purple' is in the custom list, we should probably treat it as a preset here.
+                // Let's make it select the CUSTOM theme with Purple colors.
+                isRecommended = true,
+                onClick = { 
+                    // Find purple in custom colors or define it
+                    val purpleOption = customColors.find { it.name == "Purple" }
+                    if (purpleOption != null) {
+                        selectedCustomColor = purpleOption
+                        onThemeSelected(AppTheme.CUSTOM)
+                        themeViewModel.setAppTheme(AppTheme.CUSTOM)
+                        themeViewModel.setCustomColors(
+                            purpleOption.primaryArgb,
+                            purpleOption.secondaryArgb,
+                            purpleOption.tertiaryArgb
+                        )
+                    }
+                }
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // More Options Section Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Palette,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Text(
+                    text = "More Colors",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            
+            // Color picker grid
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selectedTheme == AppTheme.CUSTOM) 
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(Spacing.md)
                 ) {
-                    customColors.forEach { colorOption ->
-                        val isColorSelected = selectedTheme == AppTheme.CUSTOM && 
-                                            selectedCustomColor.name == colorOption.name
-                        
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.clickable {
-                                selectedCustomColor = colorOption
-                                onThemeSelected(AppTheme.CUSTOM)
-                                // Apply custom colors via ThemeViewModel
-                                themeViewModel.setAppTheme(AppTheme.CUSTOM)
-                                themeViewModel.setCustomColors(
-                                    colorOption.primaryArgb,
-                                    colorOption.secondaryArgb,
-                                    colorOption.tertiaryArgb
-                                )
-                            }
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.radialGradient(
-                                            colors = listOf(colorOption.primary, colorOption.light)
-                                        )
+                    Text(
+                        text = "Pick a color theme",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    // Color circles in a row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        customColors.forEach { colorOption ->
+                            val isColorSelected = selectedTheme == AppTheme.CUSTOM && 
+                                                selectedCustomColor.name == colorOption.name
+                            
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable {
+                                    selectedCustomColor = colorOption
+                                    onThemeSelected(AppTheme.CUSTOM)
+                                    // Apply custom colors via ThemeViewModel
+                                    themeViewModel.setAppTheme(AppTheme.CUSTOM)
+                                    themeViewModel.setCustomColors(
+                                        colorOption.primaryArgb,
+                                        colorOption.secondaryArgb,
+                                        colorOption.tertiaryArgb
                                     )
-                                    .then(
-                                        if (isColorSelected) Modifier.background(
-                                            color = Color.Transparent,
-                                            shape = CircleShape
-                                        ) else Modifier
-                                    ),
-                                contentAlignment = Alignment.Center
+                                }
                             ) {
-                                if (isColorSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(52.dp)
-                                            .clip(CircleShape)
-                                            .background(Color.Transparent)
-                                    ) {
-                                        Icon(
-                                            Icons.Filled.Check,
-                                            contentDescription = "Selected",
-                                            tint = Color.White,
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .align(Alignment.Center)
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.radialGradient(
+                                                colors = listOf(colorOption.primary, colorOption.light)
+                                            )
                                         )
+                                        .then(
+                                            if (isColorSelected) Modifier.background(
+                                                color = Color.Transparent,
+                                                shape = CircleShape
+                                            ) else Modifier
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isColorSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(52.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.Transparent)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
                                     }
                                 }
+                                
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                
+                                Text(
+                                    text = colorOption.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isColorSelected) 
+                                        colorOption.primary 
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (isColorSelected) FontWeight.Bold else FontWeight.Normal
+                                )
                             }
-                            
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            
-                            Text(
-                                text = colorOption.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isColorSelected) 
-                                    colorOption.primary 
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (isColorSelected) FontWeight.Bold else FontWeight.Normal
-                            )
                         }
                     }
                 }
             }
+            
+            Spacer(modifier = Modifier.height(100.dp)) // Extra space at bottom
         }
         
-        Spacer(modifier = Modifier.weight(1f))
-        
-        Button(
+        // Floating Action Button for Next
+        FloatingActionButton(
             onClick = onNext,
             modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(28.dp)
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.lg)
+                .navigationBarsPadding(), // Critical so it doesn't get hidden under chin
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
         ) {
-            Text("Continue", fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.width(Spacing.xs))
-            Icon(Icons.Filled.ArrowForward, null, modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Filled.ArrowForward, 
+                contentDescription = "Next",
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
@@ -1311,67 +1331,79 @@ private fun PermissionsStep(
     onRequestPermissions: () -> Unit,
     onSkip: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = Spacing.lg)
-            .padding(top = 80.dp, bottom = Spacing.lg),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.lg)
+                .padding(top = 80.dp, bottom = 160.dp), // Space for bottom buttons
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = Icons.Filled.LocationOn,
-                contentDescription = null,
-                modifier = Modifier.size(50.dp),
-                tint = MaterialTheme.colorScheme.primary
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(50.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            Text(
+                text = "Enable Location",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            Text(
+                text = "Automatically tag where you make transactions to understand your spending patterns better.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = Spacing.lg)
             )
         }
         
-        Spacer(modifier = Modifier.height(Spacing.xl))
-        
-        Text(
-            text = "Enable Location",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        
-        Spacer(modifier = Modifier.height(Spacing.md))
-        
-        Text(
-            text = "Automatically tag where you make transactions to understand your spending patterns better.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = Spacing.lg)
-        )
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        Button(
-            onClick = onRequestPermissions,
+        // Bottom Buttons grounded
+        Column(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(28.dp)
+                .padding(Spacing.lg)
+                .navigationBarsPadding() // Ensure it clears system bars
         ) {
-            Icon(Icons.Filled.LocationOn, null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(Spacing.sm))
-            Text("Enable Location", fontWeight = FontWeight.SemiBold)
-        }
-        
-        Spacer(modifier = Modifier.height(Spacing.md))
-        
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Maybe later", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(
+                onClick = onRequestPermissions,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(28.dp)
+            ) {
+                Icon(Icons.Filled.LocationOn, null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(Spacing.sm))
+                Text("Enable Location", fontWeight = FontWeight.SemiBold)
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            TextButton(
+                onClick = onSkip,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Maybe later", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -1380,12 +1412,10 @@ private fun PermissionsStep(
 private fun CompleteStep(
     selectedCurrency: Currency?,
     hasCurrencyBeenSet: Boolean,
-    onComplete: () -> Unit,
-    onAddCustomBank: ((bankName: String, senderIds: String) -> Unit)? = null
+    onComplete: () -> Unit
 ) {
     // Animated entrance
     var isVisible by remember { mutableStateOf(false) }
-    var showAddCustomBankSheet by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { isVisible = true }
     
     val iconScale by animateFloatAsState(
@@ -1481,54 +1511,36 @@ private fun CompleteStep(
         Spacer(modifier = Modifier.height(Spacing.lg))
         
         // SMS Auto-Detection Info Card (always show)
-        if (onAddCustomBank != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(Spacing.md)
             ) {
-                Column(
-                    modifier = Modifier.padding(Spacing.md)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Sms,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(24.dp)
+                    Icon(
+                        imageVector = Icons.Filled.Sms,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "SMS Auto-Tracking",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "SMS Auto-Tracking",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Automatically track expenses from bank SMS",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    
-                    if (onAddCustomBank != null) {
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        OutlinedButton(
-                            onClick = { showAddCustomBankSheet = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.xs))
-                            Text("Add Custom Bank (if not listed)")
-                        }
+                        Text(
+                            text = "Automatically track expenses from bank SMS",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -1547,16 +1559,5 @@ private fun CompleteStep(
             Spacer(modifier = Modifier.width(Spacing.sm))
             Icon(Icons.Filled.ArrowForward, null, modifier = Modifier.size(20.dp))
         }
-    }
-    
-    // Add Custom Bank Sheet
-    if (showAddCustomBankSheet && onAddCustomBank != null) {
-        AddCustomBankSheet(
-            onDismiss = { showAddCustomBankSheet = false },
-            onConfirm = { bankName, senderIds ->
-                onAddCustomBank(bankName, senderIds)
-                showAddCustomBankSheet = false
-            }
-        )
     }
 }

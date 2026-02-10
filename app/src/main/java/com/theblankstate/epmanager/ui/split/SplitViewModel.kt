@@ -162,14 +162,16 @@ class SplitViewModel @Inject constructor(
     // Actions
     fun createGroup(
         name: String, 
-        emoji: String, 
+        emoji: String,
+        planType: PlanType,
         memberNames: List<String>, 
         linkedFriends: List<Friend>,
         budget: Double?
     ) {
         viewModelScope.launch {
-            val group = SplitGroup(name = name, emoji = emoji, budget = budget)
+            val group = SplitGroup(name = name, emoji = emoji, planType = planType, budget = budget)
             splitRepository.insertGroup(group)
+
             
             // Add "You" as the first member
             val youMember = GroupMember(
@@ -240,21 +242,51 @@ class SplitViewModel @Inject constructor(
         }
     }
     
-    fun addExpense(description: String, amount: Double, paidById: String, accountId: String?) {
+    fun addExpense(
+        description: String, 
+        amount: Double, 
+        paidById: String, 
+        accountId: String?,
+        enableSplit: Boolean = true,
+        includedMemberIds: List<String>? = null,
+        customShares: Map<String, Double>? = null,  // Changed to Map for all members
+        instantSettle: Boolean = false
+    ) {
         val groupId = _uiState.value.selectedGroup?.id ?: return
         val currentUser = _uiState.value.groupMembers.find { it.isCurrentUser }
         val isPaidByMe = paidById == currentUser?.id
         
         viewModelScope.launch {
-            // Create the split expense
-            splitRepository.addSplitExpense(
+            // Create the split expense with new fields
+            val expense = SplitExpense(
                 groupId = groupId,
                 description = description,
                 totalAmount = amount,
-                paidById = paidById
+                paidById = paidById,
+                enableSplit = enableSplit,
+                includedMemberIds = includedMemberIds?.joinToString(","),
+                customUserShare = customShares?.get(currentUser?.id)  // Store current user's custom share
             )
+            splitRepository.insertExpense(expense)
             
-            // If paid by "You" and account is selected, create a transaction
+            // Create ExpenseShare records for balance calculation
+            if (enableSplit) {
+                val memberIds = includedMemberIds ?: _uiState.value.groupMembers.map { it.id }
+                val equalShare = amount / memberIds.size
+                
+                val shares = memberIds.map { memberId ->
+                    ExpenseShare(
+                        expenseId = expense.id,
+                        memberId = memberId,
+                        // Use custom share if provided for this member, otherwise equal share
+                        shareAmount = customShares?.get(memberId) ?: equalShare
+                    )
+                }
+                splitRepository.insertShares(shares)
+            }
+
+            
+            // If paid by "You" and account is selected, create a transaction for the full amount
             if (isPaidByMe && accountId != null) {
                 val transaction = Transaction(
                     amount = amount,
@@ -268,6 +300,42 @@ class SplitViewModel @Inject constructor(
                 
                 // Update account balance
                 accountRepository.updateBalance(accountId, -amount)
+            } else if (!isPaidByMe && accountId != null && enableSplit && currentUser != null) {
+                // Someone else paid - record YOUR share as an expense from the repayment account
+                val memberIds = includedMemberIds ?: _uiState.value.groupMembers.map { it.id }
+                val userIncluded = currentUser.id in memberIds
+                
+                if (userIncluded) {
+                    // Calculate user's share
+                    val userShare = customShares?.get(currentUser.id) ?: (amount / memberIds.size)
+                    val payer = _uiState.value.groupMembers.find { it.id == paidById }
+                    val payerName = payer?.name ?: "Someone"
+                    
+                    val transaction = Transaction(
+                        amount = userShare,
+                        type = TransactionType.EXPENSE,
+                        categoryId = "split_expense",
+                        accountId = accountId,
+                        date = System.currentTimeMillis(),
+                        note = "Split Share: $description - paid by $payerName (${_uiState.value.selectedGroup?.name})"
+                    )
+                    transactionRepository.insertTransaction(transaction)
+                    
+                    // Update account balance
+                    accountRepository.updateBalance(accountId, -userShare)
+                    
+                    // If instant settle is enabled, create settlement record to clear the balance
+                    if (instantSettle && paidById != null) {
+                        val settlement = Settlement(
+                            groupId = groupId,
+                            fromMemberId = currentUser.id,  // I paid back
+                            toMemberId = paidById,          // To the person who paid
+                            amount = userShare,
+                            note = "Instant settle: $description"
+                        )
+                        splitRepository.insertSettlement(settlement)
+                    }
+                }
             }
             
             hideAddExpenseSheet()
