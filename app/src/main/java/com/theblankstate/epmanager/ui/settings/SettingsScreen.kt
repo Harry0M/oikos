@@ -1,5 +1,7 @@
 package com.theblankstate.epmanager.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +40,8 @@ fun SettingsScreen(
     onNavigateToFriends: () -> Unit = {},
     onNavigateToDebtCredit: () -> Unit = {},
     onNavigateToThemeCustomization: () -> Unit = {},
+    onNavigateToTerms: () -> Unit = {},
+    onNavigateToOpenSource: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel(),
     themeViewModel: com.theblankstate.epmanager.ui.theme.ThemeViewModel = hiltViewModel(),
     currencyViewModel: CurrencyViewModel = hiltViewModel()
@@ -482,10 +486,53 @@ fun SettingsScreen(
         // Help Section
         SettingsSectionHeader("Help")
         
+        // Legal Section
+        SettingsSectionHeader("Legal & Information")
+
+        SettingsItem(
+            icon = Icons.Filled.Description,
+            title = "Terms & Conditions",
+            subtitle = "Read our terms of service",
+            onClick = onNavigateToTerms
+        )
+
+        SettingsItem(
+            icon = Icons.Filled.Code,
+            title = "Open Source Licenses",
+            subtitle = "Third-party software notices",
+            onClick = onNavigateToOpenSource
+        )
+
+        val context = androidx.compose.ui.platform.LocalContext.current
+        SettingsItem(
+            icon = Icons.Filled.Lock,
+            title = "Privacy Policy",
+            subtitle = "Data usage and protection",
+            onClick = {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://oikos.theblankstate.com/privacy"))
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // Fallback or ignore
+                }
+            }
+        )
+
         SettingsItem(
             icon = Icons.AutoMirrored.Filled.Help,
             title = "Help & Support",
-            subtitle = "Contact: theblankstateteam@gmail.com"
+            subtitle = "Contact: theblankstateteam@gmail.com",
+            onClick = {
+                try {
+                    val intent = Intent(Intent.ACTION_SENDTO).apply {
+                        data = Uri.parse("mailto:theblankstateteam@gmail.com")
+                        putExtra(Intent.EXTRA_SUBJECT, "Support Request - EP Manager")
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // Fallback or ignore
+                }
+            }
         )
         
         Spacer(modifier = Modifier.height(Spacing.huge))

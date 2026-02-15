@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -24,7 +25,9 @@ import com.theblankstate.epmanager.ui.theme.Spacing
 @Composable
 fun TermsAndConditionsScreen(
     onAccept: () -> Unit,
-    onDecline: () -> Unit
+    onDecline: () -> Unit,
+    showAcceptDecline: Boolean = true,
+    onNavigateBack: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     var hasScrolledToBottom by remember { mutableStateOf(false) }
@@ -39,50 +42,59 @@ fun TermsAndConditionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Terms & Conditions") }
+                title = { Text("Terms & Conditions") },
+                navigationIcon = {
+                    if (!showAcceptDecline) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                }
             )
         },
         bottomBar = {
-            Surface(
-                tonalElevation = 3.dp,
-                shadowElevation = 8.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.md)
+            if (showAcceptDecline) {
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp
                 ) {
-                    Button(
-                        onClick = onAccept,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = hasScrolledToBottom
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("I Accept the Terms & Conditions")
-                    }
-                    
-                    if (!hasScrolledToBottom) {
-                        Text(
-                            text = "Please scroll to read all terms",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = Spacing.xs)
-                        )
-                    }
-                    
-                    TextButton(
-                        onClick = onDecline,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Decline & Exit")
+                        Button(
+                            onClick = onAccept,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = hasScrolledToBottom
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("I Accept the Terms & Conditions")
+                        }
+                        
+                        if (!hasScrolledToBottom) {
+                            Text(
+                                text = "Please scroll to read all terms",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = Spacing.xs)
+                            )
+                        }
+                        
+                        TextButton(
+                            onClick = onDecline,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Decline & Exit")
+                        }
                     }
                 }
             }

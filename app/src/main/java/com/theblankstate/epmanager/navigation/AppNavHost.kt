@@ -28,6 +28,8 @@ import com.theblankstate.epmanager.ui.settings.SettingsScreen
 import com.theblankstate.epmanager.ui.sms.SmsSettingsScreen
 import com.theblankstate.epmanager.ui.split.SplitScreen
 import com.theblankstate.epmanager.ui.subscriptions.SubscriptionsScreen
+import com.theblankstate.epmanager.ui.terms.TermsAndConditionsScreen
+import com.theblankstate.epmanager.ui.settings.OpenSourceLicensesScreen
 import com.theblankstate.epmanager.ui.transactions.TransactionsScreen
 import com.theblankstate.epmanager.ui.transactions.TransactionDetailScreen
 
@@ -296,6 +298,12 @@ fun AppNavHost(
                 },
                 onNavigateToThemeCustomization = {
                     navController.navigate(Screen.ThemeCustomization.route)
+                },
+                onNavigateToTerms = {
+                    navController.navigate(Screen.Terms.route)
+                },
+                onNavigateToOpenSource = {
+                    navController.navigate(Screen.OpenSource.route)
                 }
             )
         }
@@ -410,6 +418,23 @@ fun AppNavHost(
                     navController.popBackStack()
                 },
                 onSignOut = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.Terms.route) {
+            TermsAndConditionsScreen(
+                onAccept = { navController.popBackStack() },
+                onDecline = { navController.popBackStack() },
+                showAcceptDecline = false,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.OpenSource.route) {
+            OpenSourceLicensesScreen(
+                onNavigateBack = {
                     navController.popBackStack()
                 }
             )

@@ -42,4 +42,5 @@ sealed class Screen(val route: String) {
     data object Onboarding : Screen("onboarding")
     data object Profile : Screen("profile")
     data object Terms : Screen("terms")
+    data object OpenSource : Screen("open_source")
 }
