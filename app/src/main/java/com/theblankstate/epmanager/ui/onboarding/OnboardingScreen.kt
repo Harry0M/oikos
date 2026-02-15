@@ -40,6 +40,8 @@ import com.theblankstate.epmanager.ui.auth.AuthViewModel
 import com.theblankstate.epmanager.ui.auth.GoogleSignInHelper
 import com.theblankstate.epmanager.ui.sms.AddCustomBankSheet
 import com.theblankstate.epmanager.ui.theme.*
+import com.theblankstate.epmanager.sms.InitialSmsSetupWorker
+import com.theblankstate.epmanager.sms.SmsPermissionManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -76,12 +78,37 @@ fun OnboardingScreen(
     // This is set to true ONLY when user clicks the sign-in button
     var userInitiatedSignIn by remember { mutableStateOf(false) }
     
-    // Location permission launcher
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
+    // Track if initial permission request has been triggered
+    var initialPermissionsRequested by remember { mutableStateOf(false) }
+    
+    // Combined permissions launcher for SMS + Location
+    val allPermissionsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        currentStep = OnboardingStep.COMPLETE
+        // Check if SMS permissions were granted
+        val smsGranted = permissions[Manifest.permission.READ_SMS] == true &&
+                         permissions[Manifest.permission.RECEIVE_SMS] == true
+        if (smsGranted) {
+            // Trigger background bank discovery scan
+            InitialSmsSetupWorker.enqueueIfNeeded(context)
+        }
+        initialPermissionsRequested = true
     }
+    
+    // SMS-only permission launcher (for retry after denial)
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            InitialSmsSetupWorker.enqueueIfNeeded(context)
+        }
+    }
+    
+    // Location-only permission launcher (for retry after denial)
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
     
     // Handle successful login - check for existing currency automatically
     // Only trigger if user explicitly initiated sign-in (not persisted session)
@@ -220,7 +247,32 @@ fun OnboardingScreen(
                     )
                     
                     OnboardingStep.PERMISSIONS -> PermissionsStep(
-                        onRequestPermissions = {
+                        onAutoRequestAllPermissions = {
+                            if (!initialPermissionsRequested) {
+                                val permissions = mutableListOf(
+                                    Manifest.permission.RECEIVE_SMS,
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                    permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                allPermissionsLauncher.launch(permissions.toTypedArray())
+                            }
+                        },
+                        initialPermissionsRequested = initialPermissionsRequested,
+                        onRequestSmsPermission = {
+                            val permissions = mutableListOf(
+                                Manifest.permission.RECEIVE_SMS,
+                                Manifest.permission.READ_SMS
+                            )
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            smsPermissionLauncher.launch(permissions.toTypedArray())
+                        },
+                        onRequestLocationPermission = {
                             locationPermissionLauncher.launch(
                                 arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -228,7 +280,7 @@ fun OnboardingScreen(
                                 )
                             )
                         },
-                        onSkip = {
+                        onNext = {
                             currentStep = OnboardingStep.COMPLETE
                         }
                     )
@@ -1328,9 +1380,42 @@ private fun ThemeOption(
 
 @Composable
 private fun PermissionsStep(
-    onRequestPermissions: () -> Unit,
-    onSkip: () -> Unit
+    onAutoRequestAllPermissions: () -> Unit,
+    initialPermissionsRequested: Boolean,
+    onRequestSmsPermission: () -> Unit,
+    onRequestLocationPermission: () -> Unit,
+    onNext: () -> Unit
 ) {
+    val context = LocalContext.current
+    var smsGranted by remember { 
+        mutableStateOf(SmsPermissionManager.hasAllPermissions(context)) 
+    }
+    var locationGranted by remember { 
+        mutableStateOf(
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) 
+    }
+    
+    // Auto-request all permissions when step first appears
+    LaunchedEffect(Unit) {
+        // Small delay so the UI renders first before showing system dialog
+        delay(400)
+        onAutoRequestAllPermissions()
+    }
+    
+    // Periodically check if permissions were granted (after returning from system dialog)
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500)
+            smsGranted = SmsPermissionManager.hasAllPermissions(context)
+            locationGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+    }
+    
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -1339,7 +1424,7 @@ private fun PermissionsStep(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.lg)
-                .padding(top = 80.dp, bottom = 160.dp), // Space for bottom buttons
+                .padding(top = 80.dp, bottom = 160.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -1350,7 +1435,7 @@ private fun PermissionsStep(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.LocationOn,
+                    imageVector = Icons.Filled.Security,
                     contentDescription = null,
                     modifier = Modifier.size(50.dp),
                     tint = MaterialTheme.colorScheme.primary
@@ -1360,49 +1445,180 @@ private fun PermissionsStep(
             Spacer(modifier = Modifier.height(Spacing.xl))
             
             Text(
-                text = "Enable Location",
+                text = "App Permissions",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
             
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             
             Text(
-                text = "Automatically tag where you make transactions to understand your spending patterns better.",
+                text = if (!initialPermissionsRequested) "Requesting permissions..."
+                       else "Grant permissions to unlock the full experience",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = Spacing.lg)
             )
+            
+            Spacer(modifier = Modifier.height(Spacing.xl))
+            
+            // SMS Permission Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (smsGranted)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (smsGranted) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (smsGranted) Icons.Filled.CheckCircle else Icons.Filled.Sms,
+                            contentDescription = null,
+                            tint = if (smsGranted) MaterialTheme.colorScheme.primary 
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(Spacing.md))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "SMS Auto-Tracking",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (smsGranted) "Enabled — banks will be detected automatically"
+                                   else "Auto-detect bank transactions from SMS",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    // Show Enable button only after initial request was denied
+                    if (!smsGranted && initialPermissionsRequested) {
+                        FilledTonalButton(
+                            onClick = onRequestSmsPermission,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("Enable", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.md))
+            
+            // Location Permission Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (locationGranted)
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (locationGranted) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (locationGranted) Icons.Filled.CheckCircle else Icons.Filled.LocationOn,
+                            contentDescription = null,
+                            tint = if (locationGranted) MaterialTheme.colorScheme.primary 
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(Spacing.md))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Location Tagging",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (locationGranted) "Enabled — transactions will be location-tagged"
+                                   else "Tag where you make transactions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    // Show Enable button only after initial request was denied
+                    if (!locationGranted && initialPermissionsRequested) {
+                        FilledTonalButton(
+                            onClick = onRequestLocationPermission,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text("Enable", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            
+            // Info text
+            Text(
+                text = "SMS data is processed locally on your device and never sent to any server.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = Spacing.lg)
+            )
         }
         
-        // Bottom Buttons grounded
+        // Bottom Continue button (always visible)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(Spacing.lg)
-                .navigationBarsPadding() // Ensure it clears system bars
+                .navigationBarsPadding()
         ) {
             Button(
-                onClick = onRequestPermissions,
+                onClick = onNext,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(28.dp)
             ) {
-                Icon(Icons.Filled.LocationOn, null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Text("Enable Location", fontWeight = FontWeight.SemiBold)
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            TextButton(
-                onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Maybe later", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Continue", fontWeight = FontWeight.SemiBold)
             }
         }
     }

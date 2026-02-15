@@ -29,6 +29,7 @@ import com.theblankstate.epmanager.data.sync.NotificationWorker
 import com.theblankstate.epmanager.navigation.AppNavHost
 import com.theblankstate.epmanager.navigation.BottomNavItem
 import com.theblankstate.epmanager.navigation.Screen
+import com.theblankstate.epmanager.sms.InitialSmsSetupWorker
 import com.theblankstate.epmanager.sms.SmsPermissionManager
 import com.theblankstate.epmanager.ui.theme.EpmanagerTheme
 import com.theblankstate.epmanager.ui.theme.Spacing
@@ -100,6 +101,11 @@ fun ExpenseManagerApp() {
         
         if (!hasSmsPermission && permissionRequestCount < 2) {
             showPermissionDialog = true
+        }
+        
+        // If SMS permission just granted, trigger initial bank discovery scan in background
+        if (hasSmsPermission) {
+            InitialSmsSetupWorker.enqueueIfNeeded(context)
         }
     }
     
