@@ -219,7 +219,7 @@ fun TermsAndConditionsScreen(
                 content = """
                     OPEN SOURCE: Oikos is an open-source project. The source code is available for review and contribution.
                     
-                    BUILT WITH AI: This app was developed with the assistance of GitHub Copilot and Anthropic's Antigravity (Claude AI).
+                    BUILT WITH AI: This app was developed with the assistance of AI assistant tools.
                     
                     THIRD-PARTY LIBRARIES: The app uses various open-source libraries, each with their own licenses.
                 """.trimIndent()
