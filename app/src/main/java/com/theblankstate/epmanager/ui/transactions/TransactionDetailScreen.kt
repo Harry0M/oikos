@@ -58,7 +58,6 @@ fun TransactionDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showLinkDialog by remember { mutableStateOf(false) }
-    var rulePattern by remember { mutableStateOf("") }
     
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -148,10 +147,7 @@ fun TransactionDetailScreen(
                             val categoryColor = category?.color?.let { Color(it) } ?: MaterialTheme.colorScheme.outline
                             
                             FilledTonalButton(
-                                onClick = { 
-                                    rulePattern = transaction.merchantName ?: transaction.receiverName ?: transaction.senderName ?: ""
-                                    showBottomSheet = true 
-                                },
+                                onClick = { showBottomSheet = true },
                                 shape = CircleShape,
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = categoryColor.copy(alpha = 0.1f),
@@ -243,15 +239,7 @@ fun TransactionDetailScreen(
                                         icon = Icons.Filled.Store,
                                         headline = label,
                                         supporting = name,
-                                        enableCopy = true,
-                                        trailingContent = {
-                                            FilledTonalButton(onClick = {
-                                                rulePattern = name!!
-                                                showBottomSheet = true
-                                            }) {
-                                                Text(category?.name ?: "Category", style = MaterialTheme.typography.labelSmall)
-                                            }
-                                        }
+                                        enableCopy = true
                                     )
                                 }
                                 
@@ -262,16 +250,8 @@ fun TransactionDetailScreen(
                                         supporting = transaction.upiId,
                                         enableCopy = true,
                                         trailingContent = {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                IconButton(onClick = { showQrDialog = true }) {
-                                                    Icon(Icons.Filled.QrCode2, "QR", tint = MaterialTheme.colorScheme.primary)
-                                                }
-                                                FilledTonalButton(onClick = {
-                                                    rulePattern = transaction.upiId!!
-                                                    showBottomSheet = true
-                                                }) {
-                                                    Text(category?.name ?: "Category", style = MaterialTheme.typography.labelSmall)
-                                                }
+                                            IconButton(onClick = { showQrDialog = true }) {
+                                                Icon(Icons.Filled.QrCode2, "QR", tint = MaterialTheme.colorScheme.primary)
                                             }
                                         }
                                     )
@@ -390,10 +370,9 @@ fun TransactionDetailScreen(
             sheetState = sheetState
         ) {
             CategorizationBottomSheetContent(
-                pattern = rulePattern,
                 categories = uiState.allCategories,
                 onCategorySelected = { cat ->
-                    viewModel.createCategorizationRule(rulePattern, cat.id)
+                    viewModel.smartUpdateCategory(cat.id)
                     showBottomSheet = false
                 }
             )
@@ -598,7 +577,6 @@ fun UpiQrCodeDialog(upiId: String, amount: Double, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategorizationBottomSheetContent(
-    pattern: String,
     categories: List<com.theblankstate.epmanager.data.model.Category>,
     onCategorySelected: (com.theblankstate.epmanager.data.model.Category) -> Unit
 ) {
@@ -609,12 +587,12 @@ fun CategorizationBottomSheetContent(
             .padding(horizontal = 24.dp)
     ) {
         Text(
-            "Categorize Activity",
+            "Change Category",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Link transactions related to '$pattern' to a category.",
+            "Select a category for this transaction.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

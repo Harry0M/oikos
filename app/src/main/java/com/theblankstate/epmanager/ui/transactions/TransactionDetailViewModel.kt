@@ -147,21 +147,54 @@ class TransactionDetailViewModel @Inject constructor(
     }
 
     /**
-     * Create a permanent categorization rule
+     * Smart category update:
+     * - Always updates current transaction's category
+     * - For SMS transactions: also creates categorization rules for merchant/UPI ID
+     * - For manual transactions: only changes the current transaction (no rules)
      */
-    fun createCategorizationRule(pattern: String, categoryId: String) {
+    fun smartUpdateCategory(categoryId: String) {
+        val txn = _uiState.value.transaction ?: return
+        
         viewModelScope.launch {
             try {
-                ruleDao.insertRule(
-                    com.theblankstate.epmanager.data.model.CategorizationRule(
-                        pattern = pattern,
-                        categoryId = categoryId
-                    )
+                // 1. Update current transaction's category
+                val updatedTxn = txn.copy(
+                    categoryId = categoryId,
+                    updatedAt = System.currentTimeMillis()
                 )
-                _uiState.update { it.copy(successMessage = "Rule saved: '$pattern' -> Category") }
+                transactionRepository.updateTransaction(updatedTxn)
+                
+                // 2. For SMS transactions, create rules for identifiers
+                if (txn.smsSender != null) {
+                    // Rule for merchant/receiver/sender name ("Paid To")
+                    val merchantPattern = txn.merchantName ?: txn.receiverName ?: txn.senderName
+                    merchantPattern?.takeIf { it.isNotBlank() }?.let {
+                        ruleDao.insertRule(
+                            com.theblankstate.epmanager.data.model.CategorizationRule(
+                                pattern = it,
+                                categoryId = categoryId
+                            )
+                        )
+                    }
+                    
+                    // Rule for UPI ID if available
+                    txn.upiId?.takeIf { it.contains("@") }?.let { upiId ->
+                        ruleDao.insertRule(
+                            com.theblankstate.epmanager.data.model.CategorizationRule(
+                                pattern = upiId,
+                                categoryId = categoryId
+                            )
+                        )
+                    }
+                }
+                
+                // 3. Reload to reflect changes
+                loadTransaction()
+                _uiState.update { it.copy(successMessage = "Category updated") }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Failed to save rule: ${e.message}") }
+                _uiState.update { it.copy(error = "Failed to update category: ${e.message}") }
             }
         }
     }
 }
+

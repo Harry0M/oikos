@@ -33,7 +33,8 @@ data class AccountsUiState(
     val editingAccount: Account? = null,
     val linkingAccount: Account? = null,
     val bankSuggestions: List<BankSuggestion> = emptyList(),
-    val customTemplates: List<SmsTemplate> = emptyList()
+    val customTemplates: List<SmsTemplate> = emptyList(),
+    val uncategorizedSenders: List<String> = emptyList()
 )
 
 /**
@@ -65,6 +66,7 @@ class AccountsViewModel @Inject constructor(
     init {
         loadAccounts()
         loadBankSuggestions()
+        loadUncategorizedSenders()
     }
     
     private fun loadAccounts() {
@@ -134,6 +136,19 @@ class AccountsViewModel @Inject constructor(
                         ) 
                     }
                 }
+        }
+    }
+    
+    private fun loadUncategorizedSenders() {
+        viewModelScope.launch {
+            try {
+                val discoveryResult = availableBankRepository.toBankDiscoveryResult()
+                val senderIds = discoveryResult.unknownSenders
+                    .flatMap { it.senderIds }
+                _uiState.update { it.copy(uncategorizedSenders = senderIds) }
+            } catch (_: Exception) {
+                // Silently ignore - uncategorized senders are optional
+            }
         }
     }
     

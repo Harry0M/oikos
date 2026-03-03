@@ -437,7 +437,7 @@ private fun WelcomeStep(
         )
         
         Text(
-            text = "Okios",
+            text = "Oikos",
             style = MaterialTheme.typography.displaySmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.graphicsLayer { alpha = contentAlpha }
@@ -630,7 +630,7 @@ private fun TermsBottomSheetContent(
         ) {
             // App Header
             Text(
-                text = "Okios v2.1",
+                text = "Oikos v2.1",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -643,7 +643,7 @@ private fun TermsBottomSheetContent(
             )
             
             TermsSection("1. Acceptance of Terms", """
-By using Okios ("the App"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the App.
+By using Oikos ("the App"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the App.
 
 Your acceptance of these terms is recorded with a timestamp for compliance purposes. You must accept these terms before using the app.
             """.trimIndent())
@@ -675,7 +675,7 @@ The security of your data depends on your device's security. We strongly recomme
 • Only installing apps from trusted sources
 
 ⚠️ THIRD-PARTY APPS WARNING
-Malicious applications installed on your device may potentially access data stored by Okios. We are not responsible for data breaches caused by:
+Malicious applications installed on your device may potentially access data stored by Oikos. We are not responsible for data breaches caused by:
 • Third-party malware or spyware
 • Compromised or rooted devices
 • Unauthorized physical access to your device
@@ -686,7 +686,7 @@ Data stored locally is protected by Android's security measures. Cloud-synced da
             
             TermsSection("4. SMS Permissions", """
 AUTO-TRACKING FEATURE
-Okios can optionally read your SMS messages to automatically detect and record transactions from bank notifications. This is a convenience feature.
+Oikos can optionally read your SMS messages to automatically detect and record transactions from bank notifications. This is a convenience feature.
 
 LOCAL PROCESSING ONLY
 SMS messages are processed entirely on your device. Message content is:
@@ -716,7 +716,7 @@ We are NOT responsible for any loss of data due to:
 • Any other circumstances beyond our control
 
 FINANCIAL ADVICE
-Okios is a tracking and management tool only. It does NOT provide:
+Oikos is a tracking and management tool only. It does NOT provide:
 • Financial advice or recommendations
 • Investment guidance
 • Tax advice or calculations
@@ -734,7 +734,7 @@ While we strive for accuracy in transaction detection and calculations, we are n
             
             TermsSection("6. Open Source License", """
 APACHE LICENSE 2.0
-Okios is open-source software licensed under the Apache License, Version 2.0.
+Oikos is open-source software licensed under the Apache License, Version 2.0.
 
 You may obtain a copy of the License at:
 https://www.apache.org/licenses/LICENSE-2.0
@@ -749,7 +749,7 @@ Contributions to the project are welcome under the same Apache 2.0 license terms
             """.trimIndent())
             
             TermsSection("7. User Responsibilities", """
-By using Okios, you agree to:
+By using Oikos, you agree to:
 • Provide accurate information when creating accounts
 • Keep your login credentials secure
 • Not use the app for any illegal purposes
@@ -971,7 +971,7 @@ private fun CurrencyItem(
         color = if (isSelected) 
             MaterialTheme.colorScheme.primaryContainer 
         else 
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            Color.Transparent,
         shadowElevation = animatedElevation
     ) {
         Row(
@@ -1724,43 +1724,7 @@ private fun CompleteStep(
             }
         }
         
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        
-        // SMS Auto-Detection Info Card (always show)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(Spacing.md)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Sms,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "SMS Auto-Tracking",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Automatically track expenses from bank SMS",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
+
         
         Spacer(modifier = Modifier.height(Spacing.lg))
         

@@ -239,6 +239,7 @@ fun AccountsScreen(
         AddEditAccountSheet(
             existingAccount = uiState.editingAccount,
             bankSuggestions = uiState.bankSuggestions,
+            uncategorizedSenders = uiState.uncategorizedSenders,
             onDismiss = { viewModel.hideDialog() },
             onConfirm = { name, type, icon, color, balance ->
                 viewModel.saveAccount(name, type, icon, color, balance)
@@ -258,6 +259,7 @@ fun AccountsScreen(
         LinkAccountDialog(
             account = uiState.linkingAccount!!,
             bankSuggestions = uiState.bankSuggestions,
+            uncategorizedSenders = uiState.uncategorizedSenders,
             onDismiss = { viewModel.hideLinkDialog() },
             onConfirm = { bankCode, accountNumber, senderIds ->
                 viewModel.linkAccount(
@@ -600,6 +602,7 @@ private fun DeleteConfirmDialog(
 fun AddEditAccountSheet(
     existingAccount: Account?,
     bankSuggestions: List<BankSuggestion>,
+    uncategorizedSenders: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: AccountType, icon: String, color: Long, balance: Double) -> Unit,
     onConfirmLinked: (name: String, bankSuggestion: BankSuggestion, accountNumber: String?, type: AccountType, balance: Double) -> Unit,
@@ -1095,6 +1098,7 @@ fun AddEditAccountSheet(
     // Add Custom Bank Sheet
     if (showAddCustomBankSheet && onAddCustomBank != null) {
         AddCustomBankSheet(
+            uncategorizedSenders = uncategorizedSenders,
             onDismiss = { showAddCustomBankSheet = false },
             onConfirm = { bankName, senderIds ->
                 onAddCustomBank(bankName, senderIds) { newBank ->
@@ -1168,8 +1172,9 @@ fun BankListItem(
             containerColor = if (isSelected) 
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
             else 
-                MaterialTheme.colorScheme.surface
-        )
+                Color.Transparent
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -1237,6 +1242,7 @@ fun BankListItem(
 private fun LinkAccountDialog(
     account: Account,
     bankSuggestions: List<BankSuggestion>,
+    uncategorizedSenders: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (bankCode: String, accountNumber: String?, senderIds: List<String>) -> Unit,
     onNavigateToSmsSettings: () -> Unit,
@@ -1578,6 +1584,7 @@ private fun LinkAccountDialog(
     // Add Custom Bank Sheet
     if (showAddCustomBankSheet && onAddCustomBank != null) {
         AddCustomBankSheet(
+            uncategorizedSenders = uncategorizedSenders,
             onDismiss = { showAddCustomBankSheet = false },
             onConfirm = { bankName, senderIds ->
                 onAddCustomBank(bankName, senderIds) { newBank ->

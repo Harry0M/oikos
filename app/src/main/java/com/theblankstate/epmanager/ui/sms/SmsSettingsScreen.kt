@@ -1697,163 +1697,174 @@ fun AddCustomBankSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = Spacing.lg)
-                .padding(bottom = Spacing.xxl)
+                .navigationBarsPadding()
+                .imePadding()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Add Custom Bank",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            
-            Text(
-                text = "If your bank SMS is not auto-detected, add it here.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            Text(
-                text = "Bank Name",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            OutlinedTextField(
-                value = bankName,
-                onValueChange = { bankName = it },
-                placeholder = { Text("e.g., Kotak Mahindra Bank") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            Text(
-                text = "SMS Sender ID",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            
-            // Help card explaining how to find sender ID
-            Card(
+            // Scrollable content area
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = Spacing.sm),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
-                )
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Column(
-                    modifier = Modifier.padding(Spacing.sm)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.tertiary
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.xs))
-                        Text(
-                            text = "How to find Sender ID?",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
+                    Text(
+                        text = "Add Custom Bank",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Text(
-                        text = "Check your SMS sender name. It usually looks like:",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "JD-KOTAKB-S, JX-KOTAKB-T, JK-KOTAKB-S",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "The common part \"KOTAKB\" is the sender ID you need!",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        fontWeight = FontWeight.SemiBold
-                    )
                 }
-            }
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            OutlinedTextField(
-                value = senderIds,
-                onValueChange = { senderIds = it },
-                placeholder = { Text("e.g., MYBANK, MY-BANK") },
-                supportingText = {
-                    Text("Comma-separated sender IDs from your bank SMS")
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            
-            // Show uncategorized senders as clickable chips
-            if (uncategorizedSenders.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                
-                Text(
-                    text = "Select from uncategorized SMS senders:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
                 
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 
-                FlowRow(
+                Text(
+                    text = "If your bank SMS is not auto-detected, add it here.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                
+                Text(
+                    text = "Bank Name",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                OutlinedTextField(
+                    value = bankName,
+                    onValueChange = { bankName = it },
+                    placeholder = { Text("e.g., Kotak Mahindra Bank") },
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
+                
+                Text(
+                    text = "SMS Sender ID",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                
+                // Help card explaining how to find sender ID
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.sm),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                    )
                 ) {
-                    uncategorizedSenders.forEach { sender ->
-                        val isSelected = senderIds.uppercase().contains(sender.uppercase())
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                if (isSelected) {
-                                    // Remove from senderIds
-                                    val currentIds = senderIds.split(",").map { it.trim() }.filter { 
-                                        it.isNotEmpty() && !it.equals(sender, ignoreCase = true) 
-                                    }
-                                    senderIds = currentIds.joinToString(", ")
-                                } else {
-                                    // Add to senderIds
-                                    val currentIds = senderIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-                                    senderIds = (currentIds + sender).joinToString(", ")
-                                }
-                            },
-                            label = { Text(sender) },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null
+                    Column(
+                        modifier = Modifier.padding(Spacing.sm)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.tertiary
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Text(
+                                text = "How to find Sender ID?",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = "Check your SMS sender name. It usually looks like:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "JD-KOTAKB-S, JX-KOTAKB-T, JK-KOTAKB-S",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "The common part \"KOTAKB\" is the sender ID you need!",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                OutlinedTextField(
+                    value = senderIds,
+                    onValueChange = { senderIds = it },
+                    placeholder = { Text("e.g., MYBANK, MY-BANK") },
+                    supportingText = {
+                        Text("Comma-separated sender IDs from your bank SMS")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                
+                // Show uncategorized senders as clickable chips
+                if (uncategorizedSenders.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    
+                    Text(
+                        text = "Select from uncategorized SMS senders:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                        uncategorizedSenders.forEach { sender ->
+                            val isSelected = senderIds.uppercase().contains(sender.uppercase())
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    if (isSelected) {
+                                        // Remove from senderIds
+                                        val currentIds = senderIds.split(",").map { it.trim() }.filter { 
+                                            it.isNotEmpty() && !it.equals(sender, ignoreCase = true) 
+                                        }
+                                        senderIds = currentIds.joinToString(", ")
+                                    } else {
+                                        // Add to senderIds
+                                        val currentIds = senderIds.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                        senderIds = (currentIds + sender).joinToString(", ")
+                                    }
+                                },
+                                label = { Text(sender) },
+                                leadingIcon = if (isSelected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
             
-            Spacer(modifier = Modifier.height(Spacing.xxl))
-            
+            // Fixed bottom buttons - always visible
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.md),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
                 OutlinedButton(
@@ -1874,6 +1885,7 @@ fun AddCustomBankSheet(
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
