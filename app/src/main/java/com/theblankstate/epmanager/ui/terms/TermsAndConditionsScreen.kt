@@ -146,7 +146,7 @@ fun TermsAndConditionsScreen(
                 content = """
                     By using Oikos ("the App"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the App.
                     
-                    Your acceptance of these terms is recorded with a timestamp for legal compliance.
+                    Your acceptance of these terms is recorded with a timestamp for compliance purposes. You must accept these terms before using the app.
                 """.trimIndent()
             )
             
@@ -155,13 +155,22 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.Lock,
                 title = "2. Privacy & Data Storage",
                 content = """
-                    LOCAL-FIRST STORAGE: All your financial data is stored locally on your device. We do not have access to your transactions, account balances, or personal financial information.
+                    LOCAL-FIRST STORAGE
+                    All your financial data including transactions, budgets, recurring expenses, savings goals, and account balances are stored locally on your device. We do not have access to your personal financial information.
                     
-                    NO DATA SELLING: We do not sell, share, or monetize your personal data in any way.
+                    NO DATA SELLING
+                    We do not sell, share, rent, or monetize your personal data in any way. Your financial information is yours alone.
                     
-                    CLOUD SYNC (Optional): If you choose to sign in with Google, your data may be synced to Google Firebase for backup purposes. This is entirely optional and under your control.
+                    CLOUD SYNC (Optional)
+                    If you choose to sign in with Google, your data may be synced to Google Firebase for backup purposes. This enables:
+                    • Cross-device synchronization
+                    • Data recovery after reinstallation
+                    • Sharing split expenses with friends
                     
-                    DATA COLLECTION: We may collect anonymous usage analytics to improve the app experience. No personally identifiable financial data is collected.
+                    This is entirely optional and under your control. You can use the app without signing in.
+                    
+                    ANONYMOUS ANALYTICS
+                    We may collect anonymous, non-personally-identifiable usage analytics to improve the app experience. No financial data is ever collected or transmitted.
                 """.trimIndent()
             )
             
@@ -170,11 +179,20 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.Security,
                 title = "3. Security Notice",
                 content = """
-                    DEVICE SECURITY: The security of your data depends on your device's security. We recommend using device lock (PIN, fingerprint, or face unlock) to protect your data.
+                    DEVICE SECURITY
+                    The security of your data depends on your device's security. We strongly recommend:
+                    • Using device lock (PIN, pattern, fingerprint, or face unlock)
+                    • Keeping your device software up to date
+                    • Only installing apps from trusted sources
                     
-                    ⚠️ THIRD-PARTY APPS WARNING: Malicious applications installed on your device may potentially access data stored by Oikos. We are not responsible for data breaches caused by third-party malware or compromised devices.
+                    ⚠️ THIRD-PARTY APPS WARNING
+                    Malicious applications installed on your device may potentially access data stored by Oikos. We are not responsible for data breaches caused by:
+                    • Third-party malware or spyware
+                    • Compromised or rooted devices
+                    • Unauthorized physical access to your device
                     
-                    ENCRYPTION: Data stored locally is protected by Android's security measures. Cloud-synced data is encrypted in transit.
+                    ENCRYPTION
+                    Data stored locally is protected by Android's security measures. Cloud-synced data is encrypted in transit using industry-standard TLS.
                 """.trimIndent()
             )
             
@@ -183,11 +201,20 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.PhoneAndroid,
                 title = "4. SMS Permissions",
                 content = """
-                    AUTO-TRACKING FEATURE: Oikos can optionally read your SMS messages to automatically detect and record transactions from bank notifications.
+                    AUTO-TRACKING FEATURE
+                    Oikos can optionally read your SMS messages to automatically detect and record transactions from bank notifications. This is a convenience feature.
                     
-                    LOCAL PROCESSING: SMS messages are processed entirely on your device. Message content is never sent to any server.
+                    LOCAL PROCESSING ONLY
+                    SMS messages are processed entirely on your device. Message content is:
+                    • Never sent to any server
+                    • Never stored beyond parsing
+                    • Never shared with any third party
                     
-                    OPTIONAL FEATURE: You can use the app without granting SMS permissions. Manual expense entry is always available.
+                    MANUAL ALTERNATIVE
+                    You can use the app fully without granting SMS permissions. Manual expense entry is always available.
+                    
+                    SUPPORTED BANKS
+                    The SMS parsing feature works with most major Indian banks.
                 """.trimIndent()
             )
             
@@ -196,63 +223,108 @@ fun TermsAndConditionsScreen(
                 icon = Icons.Default.Warning,
                 title = "5. Disclaimers & Limitations",
                 content = """
-                    NO WARRANTY: The App is provided "as is" without any warranties, express or implied.
+                    NO WARRANTY
+                    The App is provided "as is" and "as available" without any warranties of any kind, either express or implied, including but not limited to merchantability, fitness for a particular purpose, or non-infringement.
                     
-                    DATA LOSS: We are NOT responsible for any loss of data due to:
-                    • Device failure or damage
-                    • App uninstallation
-                    • System updates
-                    • Cyberattacks or hacking
-                    • User error
+                    DATA LOSS DISCLAIMER
+                    We are NOT responsible for any loss of data due to:
+                    • Device failure, damage, or theft
+                    • App uninstallation (data is lost if not synced)
+                    • Operating system updates or factory reset
+                    • Cyberattacks, hacking, or malware
+                    • User error or accidental deletion
+                    • Cloud service outages
                     • Any other circumstances beyond our control
                     
-                    FINANCIAL ADVICE: Oikos is a tracking tool only. It does not provide financial, investment, or tax advice.
+                    FINANCIAL ADVICE
+                    Oikos is a tracking and management tool only. It does NOT provide:
+                    • Financial advice or recommendations
+                    • Investment guidance
+                    • Tax advice or calculations
+                    • Legal counsel
                     
-                    ACCURACY: While we strive for accuracy, we are not responsible for errors in automatic transaction detection or calculations.
+                    Please consult qualified professionals for such services.
+                    
+                    ACCURACY
+                    While we strive for accuracy in transaction detection and calculations, we are not responsible for errors in:
+                    • Automatic SMS transaction parsing
+                    • Currency conversions
+                    • Budget calculations
+                    • Split expense calculations
                 """.trimIndent()
             )
             
             // Section 6: Open Source
             TermsSection(
                 icon = Icons.Default.Lock,
-                title = "6. Open Source & Attribution",
+                title = "6. Open Source License",
                 content = """
-                    OPEN SOURCE: Oikos is an open-source project. The source code is available for review and contribution.
+                    APACHE LICENSE 2.0
+                    Oikos is open-source software licensed under the Apache License, Version 2.0.
                     
-                    BUILT WITH AI: This app was developed with the assistance of AI assistant tools.
+                    You may obtain a copy of the License at:
+                    https://www.apache.org/licenses/LICENSE-2.0
                     
-                    THIRD-PARTY LIBRARIES: The app uses various open-source libraries, each with their own licenses.
+                    Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                    
+                    BUILT WITH AI
+                    This app was developed with the assistance of AI assistant tools.
+                    
+                    THIRD-PARTY LIBRARIES
+                    The app uses various open-source libraries, each with their own licenses. A full list of dependencies and their licenses is available in the app's About section.
+                    
+                    CONTRIBUTIONS
+                    Contributions to the project are welcome under the same Apache 2.0 license terms.
                 """.trimIndent()
             )
             
-            // Section 7: Contact & Support
+            // Section 7: User Responsibilities
             TermsSection(
-                icon = Icons.Default.Email,
-                title = "7. Contact & Support",
+                icon = Icons.Default.CheckCircle,
+                title = "7. User Responsibilities",
                 content = """
-                    For support, questions, bug reports, or feature requests, please contact us at:
-                    
-                    📧 theblankstateteam@gmail.com
-                    
-                    We aim to respond to all queries within 48-72 hours.
+                    By using Oikos, you agree to:
+                    • Provide accurate information when creating accounts
+                    • Keep your login credentials secure
+                    • Not use the app for any illegal purposes
+                    • Not attempt to reverse engineer or tamper with the app
+                    • Backup your data regularly if using without cloud sync
                 """.trimIndent()
             )
             
-            // Section 8: Changes
+            // Section 8: Changes to Terms
             TermsSection(
                 icon = Icons.Default.CheckCircle,
                 title = "8. Changes to Terms",
                 content = """
-                    We reserve the right to modify these Terms at any time. Significant changes will be notified within the app.
+                    We reserve the right to modify these Terms at any time. When we make changes:
+                    • Significant changes will be notified within the app
+                    • The version number will be updated
+                    • Your continued use after changes constitutes acceptance
                     
-                    Continued use of the app after changes constitutes acceptance of the new terms.
+                    We recommend reviewing these terms periodically for updates.
                 """.trimIndent()
             )
             
-            // Section 9: Governing Law
+            // Section 9: Contact & Support
+            TermsSection(
+                icon = Icons.Default.Email,
+                title = "9. Contact & Support",
+                content = """
+                    For support, questions, bug reports, feature requests, or privacy inquiries, please contact us:
+                    
+                    📧 Email: theblankstateteam@gmail.com
+                    
+                    We aim to respond to all queries within 48-72 hours.
+                    
+                    For security vulnerabilities, please email with "SECURITY" in the subject line for priority handling.
+                """.trimIndent()
+            )
+            
+            // Section 10: Governing Law
             TermsSection(
                 icon = Icons.Default.Security,
-                title = "9. Governing Law",
+                title = "10. Governing Law",
                 content = """
                     These Terms shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law provisions.
                     

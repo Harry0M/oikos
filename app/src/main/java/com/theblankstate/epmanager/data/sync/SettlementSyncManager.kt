@@ -148,7 +148,7 @@ class SettlementSyncManager @Inject constructor(
             val senderName = notification.fromDisplayName ?: "Someone"
             
             val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("💰 Payment Received")
                 .setContentText("$senderName paid you ₹$amountFormatted")
                 .setStyle(NotificationCompat.BigTextStyle()

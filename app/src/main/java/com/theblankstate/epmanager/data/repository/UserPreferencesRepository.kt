@@ -43,6 +43,7 @@ class UserPreferencesRepository @Inject constructor(
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
         val SELECTED_CURRENCY_CODE = stringPreferencesKey("selected_currency_code")
         val HAS_CURRENCY_BEEN_SET = booleanPreferencesKey("has_currency_been_set")
+        val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
     }
 
     // Default Custom Colors (e.g., a nice Blue as fallback)
@@ -103,6 +104,12 @@ class UserPreferencesRepository @Inject constructor(
             preferences[PreferencesKeys.HAS_CURRENCY_BEEN_SET] ?: false
         }
 
+    // Auto-sync toggle (default: enabled)
+    val isAutoSyncEnabled: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.AUTO_SYNC_ENABLED] ?: true
+        }
+
     suspend fun setDarkModePreference(preference: DarkModePreference) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.DARK_MODE_PREF] = preference.name
@@ -143,6 +150,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun completeOnboarding() {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.HAS_COMPLETED_ONBOARDING] = true
+        }
+    }
+
+    suspend fun setAutoSyncEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.AUTO_SYNC_ENABLED] = enabled
         }
     }
     

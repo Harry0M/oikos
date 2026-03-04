@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -419,11 +420,10 @@ private fun WelcomeStep(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Filled.AccountBalanceWallet,
-                contentDescription = null,
-                modifier = Modifier.size(60.dp),
-                tint = MaterialTheme.colorScheme.primary
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.theblankstate.epmanager.R.drawable.oikos),
+                contentDescription = "Oikos Logo",
+                modifier = Modifier.size(60.dp)
             )
         }
         
@@ -698,7 +698,7 @@ MANUAL ALTERNATIVE
 You can use the app fully without granting SMS permissions. Manual expense entry is always available.
 
 SUPPORTED BANKS
-The SMS parsing feature works with major Indian banks including HDFC, SBI, ICICI, Axis, Kotak, and many others.
+The SMS parsing feature works with most major Indian banks.
             """.trimIndent())
             
             TermsSection("5. Disclaimers & Limitations", """
@@ -744,6 +744,9 @@ Unless required by applicable law or agreed to in writing, software distributed 
 THIRD-PARTY LIBRARIES
 The app uses various open-source libraries, each with their own licenses. A full list of dependencies and their licenses is available in the app's About section.
 
+BUILT WITH AI
+This app was developed with the assistance of AI assistant tools.
+
 CONTRIBUTIONS
 Contributions to the project are welcome under the same Apache 2.0 license terms.
             """.trimIndent())
@@ -774,6 +777,12 @@ For support, questions, bug reports, feature requests, or privacy inquiries, ple
 We aim to respond to all queries within 48-72 hours.
 
 For security vulnerabilities, please email with "SECURITY" in the subject line for priority handling.
+            """.trimIndent())
+            
+            TermsSection("10. Governing Law", """
+These Terms shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law provisions.
+
+Any disputes arising from these terms shall be subject to the exclusive jurisdiction of the courts in Ahmedabad, Gujarat, India.
             """.trimIndent())
             
             Spacer(modifier = Modifier.height(Spacing.xxl))

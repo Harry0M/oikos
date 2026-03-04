@@ -1789,13 +1789,13 @@ fun AddCustomBankSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "JD-KOTAKB-S, JX-KOTAKB-T, JK-KOTAKB-S",
+                            text = "TX-BNKS-S, JX-BNKS-T, JK-BNKS-S",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "The common part \"KOTAKB\" is the sender ID you need!",
+                            text = "The common part \"BNKS\" is the sender ID you need!",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary,
                             fontWeight = FontWeight.SemiBold

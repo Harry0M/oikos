@@ -4,8 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
+import com.theblankstate.epmanager.data.repository.UserPreferencesRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /**
@@ -13,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * 
  * This worker:
  * - Runs periodically (every 6 hours) when device has network
- * - Only syncs if user is logged in
+ * - Only syncs if user is logged in AND auto-sync is enabled
  * - Only syncs settings data (NOT transactions)
  * - Uses offline-first approach - never blocks main app functionality
  */
@@ -21,11 +23,18 @@ import java.util.concurrent.TimeUnit
 class BackgroundSyncWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted private val workerParams: WorkerParameters,
-    private val syncManager: FirebaseSyncManager
+    private val syncManager: FirebaseSyncManager,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
         Log.d(TAG, "Starting background sync...")
+        
+        // Check if auto-sync is enabled
+        if (!userPreferencesRepository.isAutoSyncEnabled.first()) {
+            Log.d(TAG, "Auto-sync is disabled, skipping sync")
+            return Result.success()
+        }
         
         // Check if user is logged in
         if (!syncManager.isLoggedIn) {

@@ -123,37 +123,45 @@ fun ProfileScreen(
             
             Spacer(modifier = Modifier.height(Spacing.sm))
             
-            // Info card about auto-sync
+            // Auto-Sync Toggle
+            val isAutoSyncEnabled by viewModel.isAutoSyncEnabled.collectAsState()
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    containerColor = if (isAutoSyncEnabled) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(Spacing.md),
-                    verticalAlignment = Alignment.Top
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Info,
+                        imageVector = if (isAutoSyncEnabled) Icons.Filled.CloudDone else Icons.Filled.CloudOff,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (isAutoSyncEnabled) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(Spacing.sm))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Auto-Sync Enabled",
+                            text = "Auto Sync",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                            color = if (isAutoSyncEnabled) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Settings (budgets, goals, recurring expenses, splits) sync automatically every 6 hours. Transaction history requires manual backup.",
+                            text = if (isAutoSyncEnabled) "All data syncs automatically every 6 hours" else "Automatic sync is disabled",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                            color = if (isAutoSyncEnabled) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
                     }
+                    Switch(
+                        checked = isAutoSyncEnabled,
+                        onCheckedChange = { viewModel.setAutoSyncEnabled(it) }
+                    )
                 }
             }
             

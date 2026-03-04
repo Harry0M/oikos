@@ -16,8 +16,8 @@ android {
         applicationId = "com.theblankstate.epmanager"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "4.0.2"
+        versionCode = 7
+        versionName = "4.0.3"
 
         testInstrumentationRunner = "com.theblankstate.epmanager.HiltTestRunner"
     }

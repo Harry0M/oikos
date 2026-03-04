@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.theblankstate.epmanager.data.repository.AuthRepository
 import com.theblankstate.epmanager.data.repository.AuthResult
 import com.theblankstate.epmanager.data.repository.FriendsRepository
+import com.theblankstate.epmanager.data.repository.UserPreferencesRepository
 import com.theblankstate.epmanager.data.sync.FirebaseSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -26,11 +27,15 @@ data class AuthUiState(
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val syncManager: FirebaseSyncManager,
-    private val friendsRepository: FriendsRepository
+    private val friendsRepository: FriendsRepository,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    
+    val isAutoSyncEnabled: StateFlow<Boolean> = userPreferencesRepository.isAutoSyncEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     
     init {
         observeAuthState()
@@ -446,5 +451,11 @@ class AuthViewModel @Inject constructor(
     
     fun clearSuccess() {
         _uiState.update { it.copy(successMessage = null) }
+    }
+    
+    fun setAutoSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAutoSyncEnabled(enabled)
+        }
     }
 }

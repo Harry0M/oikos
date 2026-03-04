@@ -90,10 +90,4 @@ class NotificationSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(dailyInsights = enabled) }
         savePreference("daily_insights", enabled)
     }
-    
-    fun sendTestNotification() {
-        viewModelScope.launch {
-            notificationManager.sendTestNotification()
-        }
-    }
 }

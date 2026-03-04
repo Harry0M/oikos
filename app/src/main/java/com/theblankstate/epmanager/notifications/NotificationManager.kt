@@ -691,20 +691,7 @@ class NotificationManager @Inject constructor(
             Log.w(TAG, "Notification permission not granted")
         }
     }
-    
-    /**
-     * Send a test notification for verification
-     */
-    suspend fun sendTestNotification() {
-        sendNotificationWithHistory(
-            channelId = CHANNEL_INSIGHTS,
-            notificationId = 9999,
-            title = "🔔 Test Notification",
-            message = "Notifications are working correctly! You'll receive alerts for budgets, bills, debts, credits, goals, and splits.",
-            icon = android.R.drawable.ic_dialog_info,
-            notificationType = NotificationType.SYSTEM
-        )
-    }
+
     
     private fun formatCurrency(amount: Double): String {
         val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
